@@ -22,9 +22,12 @@ export const defaultSettings: AnimationSettings = {
   phaseOffset: 0,
   verticalAmplitude: 1,
   horizontalAmplitude: 1,
+  rotationMultiplier: 1,
+  rotationAxis: 'y',
   cameraDistance: 6,
   cameraAutoRotate: false,
   cameraAutoRotateSpeed: 1,
+  cameraPreset: 'custom',
   bloomEnabled: true,
   bloomIntensity: 0.5,
   motionBlurEnabled: false,
@@ -69,6 +72,7 @@ export const presets: Preset[] = [
       roughness: 0.1,
       backgroundColor: '#05050f',
       backgroundGradientColor: '#0f0520',
+      seamlessLoopVerification: true,
     },
   },
   {
@@ -90,6 +94,7 @@ export const presets: Preset[] = [
       spread: 3,
       backgroundColor: '#0a0505',
       backgroundGradientColor: '#1a0a05',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -109,6 +114,7 @@ export const presets: Preset[] = [
       spread: 4,
       backgroundColor: '#020a08',
       backgroundGradientColor: '#051a15',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -128,6 +134,7 @@ export const presets: Preset[] = [
       spread: 5,
       backgroundColor: '#050510',
       backgroundGradientColor: '#0a0a25',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -147,6 +154,7 @@ export const presets: Preset[] = [
       spread: 1,
       backgroundColor: '#0a0500',
       backgroundGradientColor: '#1a0f00',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -168,6 +176,7 @@ export const presets: Preset[] = [
       backgroundColor: '#0f172a',
       backgroundGradientColor: '#1e293b',
       bloomIntensity: 0.3,
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -188,6 +197,7 @@ export const presets: Preset[] = [
       wireframe: true,
       backgroundColor: '#000a00',
       backgroundGradientColor: '#001a00',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -208,6 +218,7 @@ export const presets: Preset[] = [
       spread: 3,
       backgroundColor: '#0a0005',
       backgroundGradientColor: '#15000a',
+      seamlessLoopVerification: true,
     },
   },
   {
@@ -227,6 +238,7 @@ export const presets: Preset[] = [
       spread: 4,
       backgroundColor: '#0a0010',
       backgroundGradientColor: '#150020',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -246,6 +258,7 @@ export const presets: Preset[] = [
       spread: 3,
       backgroundColor: '#050005',
       backgroundGradientColor: '#100010',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -265,6 +278,7 @@ export const presets: Preset[] = [
       spread: 3,
       backgroundColor: '#0a0015',
       backgroundGradientColor: '#1a0030',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -284,6 +298,7 @@ export const presets: Preset[] = [
       spread: 2,
       backgroundColor: '#0a0500',
       backgroundGradientColor: '#1a0f00',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -303,6 +318,7 @@ export const presets: Preset[] = [
       spread: 4,
       backgroundColor: '#000a05',
       backgroundGradientColor: '#001505',
+      seamlessLoopVerification: true,
     },
   },
   {
@@ -324,6 +340,7 @@ export const presets: Preset[] = [
       roughness: 0.3,
       backgroundColor: '#0a0010',
       backgroundGradientColor: '#150025',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -344,6 +361,7 @@ export const presets: Preset[] = [
       spread: 3.5,
       backgroundColor: '#05000a',
       backgroundGradientColor: '#0f0015',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -365,6 +383,7 @@ export const presets: Preset[] = [
       bloomIntensity: 0.7,
       backgroundColor: '#050010',
       backgroundGradientColor: '#0a001a',
+      seamlessLoopVerification: true,
     },
   },
   {
@@ -385,6 +404,7 @@ export const presets: Preset[] = [
       wireframe: true,
       backgroundColor: '#000805',
       backgroundGradientColor: '#001005',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -406,6 +426,7 @@ export const presets: Preset[] = [
       roughness: 0.6,
       backgroundColor: '#0a0005',
       backgroundGradientColor: '#150a0a',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -438,6 +459,7 @@ export const presets: Preset[] = [
       asciiGamma: 0.8,
       asciiBrightnessBoost: 1.5,
       asciiInvert: false,
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -461,6 +483,7 @@ export const presets: Preset[] = [
       frequency: 2,
       backgroundColor: '#0a0500',
       backgroundGradientColor: '#1a0f00',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -484,6 +507,7 @@ export const presets: Preset[] = [
       frequency: 1.5,
       backgroundColor: '#0a0010',
       backgroundGradientColor: '#150020',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -507,6 +531,7 @@ export const presets: Preset[] = [
       frequency: 2.5,
       backgroundColor: '#020a08',
       backgroundGradientColor: '#051a15',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -530,6 +555,7 @@ export const presets: Preset[] = [
       frequency: 1,
       backgroundColor: '#0a0005',
       backgroundGradientColor: '#1a000f',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -553,6 +579,7 @@ export const presets: Preset[] = [
       frequency: 3,
       backgroundColor: '#000a05',
       backgroundGradientColor: '#001505',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -576,6 +603,7 @@ export const presets: Preset[] = [
       frequency: 2,
       backgroundColor: '#050510',
       backgroundGradientColor: '#0a0a25',
+      seamlessLoopVerification: false,
     },
   },
   {
@@ -599,6 +627,7 @@ export const presets: Preset[] = [
       frequency: 1.8,
       backgroundColor: '#0a0000',
       backgroundGradientColor: '#1a0000',
+      seamlessLoopVerification: true,
     },
   },
 ];

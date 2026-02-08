@@ -25,11 +25,14 @@ export interface AnimationSettings {
   phaseOffset: number; // phase offset for animations
   verticalAmplitude: number; // separate control for vertical movement
   horizontalAmplitude: number; // separate control for horizontal movement
+  rotationMultiplier: number; // multiplier for rotation amount
+  rotationAxis: 'x' | 'y' | 'z' | 'all'; // axis for rotation
 
   // Camera
   cameraDistance: number;
   cameraAutoRotate: boolean;
   cameraAutoRotateSpeed: number;
+  cameraPreset: 'front' | 'top' | 'side' | 'isometric' | 'custom'; // camera preset positions
 
   // Effects
   bloomEnabled: boolean;
@@ -95,7 +98,8 @@ export type AnimationType =
   | 'figure8'
   | 'helix'
   | 'ripple'
-  | 'swirl';
+  | 'swirl'
+  | 'simpleRotation';
 
 export interface Preset {
   id: string;

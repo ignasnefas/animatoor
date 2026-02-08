@@ -47,8 +47,33 @@ function CameraController({ settings }: CameraControllerProps) {
   const { camera } = useThree();
 
   useEffect(() => {
-    camera.position.setLength(settings.cameraDistance);
-  }, [settings.cameraDistance, camera]);
+    if (settings.cameraPreset !== 'custom') {
+      // Set camera position based on preset
+      switch (settings.cameraPreset) {
+        case 'front':
+          camera.position.set(0, 0, settings.cameraDistance);
+          camera.lookAt(0, 0, 0);
+          break;
+        case 'top':
+          camera.position.set(0, settings.cameraDistance, 0);
+          camera.lookAt(0, 0, 0);
+          break;
+        case 'side':
+          camera.position.set(settings.cameraDistance, 0, 0);
+          camera.lookAt(0, 0, 0);
+          break;
+        case 'isometric':
+          camera.position.set(settings.cameraDistance, settings.cameraDistance, settings.cameraDistance);
+          camera.lookAt(0, 0, 0);
+          break;
+      }
+    } else {
+      // For custom mode, just set the distance if not auto-rotating
+      if (!settings.cameraAutoRotate) {
+        camera.position.setLength(settings.cameraDistance);
+      }
+    }
+  }, [settings.cameraPreset, settings.cameraDistance, camera]);
 
   useFrame(({ clock }) => {
     if (settings.cameraAutoRotate) {

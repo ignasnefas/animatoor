@@ -62,6 +62,7 @@ const animationTypes: { value: AnimationType; label: string }[] = [
   { value: 'helix', label: 'Helix' },
   { value: 'ripple', label: 'Ripple' },
   { value: 'swirl', label: 'Swirl' },
+  { value: 'simpleRotation', label: 'Simple Rotation' },
 ];
 
 function Section({ title, icon: Icon, children, defaultOpen = true }: {
@@ -282,10 +283,34 @@ export function SettingsPanel({
           <SliderControl label="Spread" value={settings.spread} min={0.5} max={8} step={0.5} onChange={(v) => update({ spread: v })} />
           <SliderControl label="Frequency" value={settings.frequency} min={0.5} max={5} step={0.5} onChange={(v) => update({ frequency: v })} suffix="x" />
           <SliderControl label="Phase Offset" value={settings.phaseOffset} min={0} max={Math.PI * 2} step={0.1} onChange={(v) => update({ phaseOffset: v })} suffix="rad" />
+          <SliderControl label="Rotation Amount" value={settings.rotationMultiplier} min={0} max={5} step={0.1} onChange={(v) => update({ rotationMultiplier: v })} suffix="x" />
+          <SelectControl
+            label="Rotation Axis"
+            value={settings.rotationAxis}
+            options={[
+              { value: 'x', label: 'X Axis' },
+              { value: 'y', label: 'Y Axis' },
+              { value: 'z', label: 'Z Axis' },
+              { value: 'all', label: 'All Axes' },
+            ]}
+            onChange={(v) => update({ rotationAxis: v as 'x' | 'y' | 'z' | 'all' })}
+          />
         </Section>
 
         {/* Camera */}
         <Section title="Camera" icon={Camera} defaultOpen={false}>
+          <SelectControl
+            label="Preset"
+            value={settings.cameraPreset}
+            options={[
+              { value: 'front', label: 'Front / Head-on' },
+              { value: 'top', label: 'Top' },
+              { value: 'side', label: 'Side' },
+              { value: 'isometric', label: 'Isometric' },
+              { value: 'custom', label: 'Custom' },
+            ]}
+            onChange={(v) => update({ cameraPreset: v as 'front' | 'top' | 'side' | 'isometric' | 'custom' })}
+          />
           <SliderControl label="Distance" value={settings.cameraDistance} min={2} max={15} step={0.5} onChange={(v) => update({ cameraDistance: v })} />
           <ToggleControl label="Auto Rotate" value={settings.cameraAutoRotate} onChange={(v) => update({ cameraAutoRotate: v })} />
           {settings.cameraAutoRotate && (

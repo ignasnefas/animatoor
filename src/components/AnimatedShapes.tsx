@@ -96,6 +96,7 @@ function Shape({ settings, index, total }: ShapeProps) {
     const hAmp = settings.horizontalAmplitude;
     const spread = settings.spread;
     const freq = settings.frequency;
+    const rotMult = settings.rotationMultiplier;
 
     switch (settings.animationType) {
       case 'orbit': {
@@ -104,8 +105,8 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = Math.cos(angle) * radius * hAmp;
         meshRef.current.position.y = Math.sin(angle * 2) * amp * 0.3 * vAmp;
         meshRef.current.position.z = Math.sin(angle) * radius;
-        meshRef.current.rotation.x = phase * 2 + offset;
-        meshRef.current.rotation.y = phase * 2 + offset;
+        meshRef.current.rotation.x = (phase * 2 + offset) * rotMult;
+        meshRef.current.rotation.y = (phase * 2 + offset) * rotMult;
         break;
       }
       case 'breathe': {
@@ -116,8 +117,8 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.y = Math.sin(baseAngle) * radius * 0.5 * vAmp;
         meshRef.current.position.z = Math.sin(baseAngle * 0.7) * radius * 0.5;
         meshRef.current.scale.setScalar(breathScale * settings.shapeScale);
-        meshRef.current.rotation.x = phase * 0.5 + offset;
-        meshRef.current.rotation.y = phase * 0.3 + offset;
+        meshRef.current.rotation.x = (phase * 0.5 + offset) * rotMult;
+        meshRef.current.rotation.y = (phase * 0.3 + offset) * rotMult;
         break;
       }
       case 'spiral': {
@@ -127,8 +128,8 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = Math.cos(spiralAngle) * spiralRadius;
         meshRef.current.position.y = height;
         meshRef.current.position.z = Math.sin(spiralAngle) * spiralRadius;
-        meshRef.current.rotation.x = phase * 2;
-        meshRef.current.rotation.z = phase * 1.5;
+        meshRef.current.rotation.x = (phase * 2) * rotMult;
+        meshRef.current.rotation.z = (phase * 1.5) * rotMult;
         break;
       }
       case 'wave': {
@@ -138,8 +139,8 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = waveX;
         meshRef.current.position.y = waveY;
         meshRef.current.position.z = waveZ;
-        meshRef.current.rotation.x = phase + offset;
-        meshRef.current.rotation.y = phase * 0.5;
+        meshRef.current.rotation.x = (phase + offset) * rotMult;
+        meshRef.current.rotation.y = (phase * 0.5) * rotMult;
         break;
       }
       case 'explode': {
@@ -150,8 +151,8 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = Math.sin(phi) * Math.cos(theta) * explodeRadius;
         meshRef.current.position.y = Math.sin(phi) * Math.sin(theta) * explodeRadius;
         meshRef.current.position.z = Math.cos(phi) * explodeRadius;
-        meshRef.current.rotation.x = phase * 2 + offset;
-        meshRef.current.rotation.y = phase * 3 + offset;
+        meshRef.current.rotation.x = (phase * 2 + offset) * rotMult;
+        meshRef.current.rotation.y = (phase * 3 + offset) * rotMult;
         const explodeScale = 0.5 + (1 - explodePhase) * 0.5;
         meshRef.current.scale.setScalar(explodeScale * settings.shapeScale);
         break;
@@ -164,9 +165,9 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.z = Math.sin(morphAngle) * morphR * 0.5;
         const morphScale = 1 + Math.sin(phase * 2 + offset) * 0.4;
         meshRef.current.scale.setScalar(morphScale * settings.shapeScale);
-        meshRef.current.rotation.x = phase + offset;
-        meshRef.current.rotation.y = phase * 2;
-        meshRef.current.rotation.z = phase * 0.5 + offset;
+        meshRef.current.rotation.x = (phase + offset) * rotMult;
+        meshRef.current.rotation.y = (phase * 2) * rotMult;
+        meshRef.current.rotation.z = (phase * 0.5 + offset) * rotMult;
         break;
       }
       case 'cascade': {
@@ -176,8 +177,8 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = cascadeX;
         meshRef.current.position.y = cascadeY;
         meshRef.current.position.z = cascadeZ;
-        meshRef.current.rotation.x = phase * 2 + offset;
-        meshRef.current.rotation.z = phase + offset;
+        meshRef.current.rotation.x = (phase * 2 + offset) * rotMult;
+        meshRef.current.rotation.z = (phase + offset) * rotMult;
         const cascadeAlpha = 1 - Math.abs(cascadeY) / spread;
         meshRef.current.scale.setScalar(cascadeAlpha * settings.shapeScale);
         break;
@@ -189,9 +190,9 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = Math.cos(vortexAngle) * vortexR;
         meshRef.current.position.y = vortexY;
         meshRef.current.position.z = Math.sin(vortexAngle) * vortexR;
-        meshRef.current.rotation.x = phase * 3;
-        meshRef.current.rotation.y = phase * 2 + offset;
-        meshRef.current.rotation.z = phase;
+        meshRef.current.rotation.x = (phase * 3) * rotMult;
+        meshRef.current.rotation.y = (phase * 2 + offset) * rotMult;
+        meshRef.current.rotation.z = phase * rotMult;
         break;
       }
       case 'pendulum': {
@@ -200,8 +201,8 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = pendulumX;
         meshRef.current.position.y = Math.cos(pendulumAngle) * 2 * vAmp - 1;
         meshRef.current.position.z = Math.sin(pendulumAngle) * 1;
-        meshRef.current.rotation.z = pendulumAngle;
-        meshRef.current.rotation.x = phase * 0.3;
+        meshRef.current.rotation.z = pendulumAngle * rotMult;
+        meshRef.current.rotation.x = (phase * 0.3) * rotMult;
         break;
       }
       case 'kaleidoscope': {
@@ -211,9 +212,9 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = Math.cos(kAngle) * kR * kMirror * hAmp;
         meshRef.current.position.y = Math.sin(kAngle) * kR * vAmp;
         meshRef.current.position.z = Math.sin(phase + offset * 2) * amp * 0.5;
-        meshRef.current.rotation.x = phase * kMirror;
-        meshRef.current.rotation.y = phase * 2;
-        meshRef.current.rotation.z = kAngle;
+        meshRef.current.rotation.x = (phase * kMirror) * rotMult;
+        meshRef.current.rotation.y = (phase * 2) * rotMult;
+        meshRef.current.rotation.z = kAngle * rotMult;
         const kScale = 0.8 + Math.sin(phase * 2 + offset) * 0.3;
         meshRef.current.scale.setScalar(kScale * settings.shapeScale);
         break;
@@ -225,8 +226,8 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = bounceX;
         meshRef.current.position.y = bounceY;
         meshRef.current.position.z = bounceZ;
-        meshRef.current.rotation.x = phase * 2 + offset;
-        meshRef.current.rotation.z = phase + offset;
+        meshRef.current.rotation.x = (phase * 2 + offset) * rotMult;
+        meshRef.current.rotation.z = (phase + offset) * rotMult;
         const bounceScale = 1 + Math.sin(phase * freq + offset) * 0.2;
         meshRef.current.scale.setScalar(bounceScale * settings.shapeScale);
         break;
@@ -237,9 +238,9 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = Math.cos(twistAngle) * twistR * hAmp;
         meshRef.current.position.y = Math.sin(twistAngle * 2) * amp * 0.5 * vAmp;
         meshRef.current.position.z = Math.sin(twistAngle) * twistR;
-        meshRef.current.rotation.x = twistAngle;
-        meshRef.current.rotation.y = twistAngle * 1.5;
-        meshRef.current.rotation.z = twistAngle * 0.5;
+        meshRef.current.rotation.x = twistAngle * rotMult;
+        meshRef.current.rotation.y = (twistAngle * 1.5) * rotMult;
+        meshRef.current.rotation.z = (twistAngle * 0.5) * rotMult;
         break;
       }
       case 'pulse': {
@@ -250,8 +251,8 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.y = Math.sin(phase * freq * 2 + offset) * amp * 0.3 * vAmp;
         meshRef.current.position.z = pulseZ;
         meshRef.current.scale.setScalar(pulseScale * settings.shapeScale);
-        meshRef.current.rotation.x = phase + offset;
-        meshRef.current.rotation.y = phase * 0.5;
+        meshRef.current.rotation.x = (phase + offset) * rotMult;
+        meshRef.current.rotation.y = (phase * 0.5) * rotMult;
         break;
       }
       case 'figure8': {
@@ -260,8 +261,8 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = Math.sin(fig8Angle) * fig8R * hAmp;
         meshRef.current.position.y = Math.sin(fig8Angle * 2) * amp * 0.5 * vAmp;
         meshRef.current.position.z = Math.cos(fig8Angle) * fig8R;
-        meshRef.current.rotation.x = phase * 2;
-        meshRef.current.rotation.z = fig8Angle;
+        meshRef.current.rotation.x = (phase * 2) * rotMult;
+        meshRef.current.rotation.z = fig8Angle * rotMult;
         break;
       }
       case 'helix': {
@@ -271,8 +272,8 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = Math.cos(helixAngle) * helixR * hAmp;
         meshRef.current.position.y = helixY * vAmp;
         meshRef.current.position.z = Math.sin(helixAngle) * helixR;
-        meshRef.current.rotation.x = phase * 3;
-        meshRef.current.rotation.y = helixAngle;
+        meshRef.current.rotation.x = (phase * 3) * rotMult;
+        meshRef.current.rotation.y = helixAngle * rotMult;
         break;
       }
       case 'ripple': {
@@ -283,8 +284,8 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = rippleX;
         meshRef.current.position.y = rippleY;
         meshRef.current.position.z = Math.cos(ripplePhase) * amp * 0.5;
-        meshRef.current.rotation.x = ripplePhase;
-        meshRef.current.rotation.z = ripplePhase * 0.5;
+        meshRef.current.rotation.x = ripplePhase * rotMult;
+        meshRef.current.rotation.z = (ripplePhase * 0.5) * rotMult;
         const rippleScale = 0.8 + Math.sin(ripplePhase) * 0.4;
         meshRef.current.scale.setScalar(rippleScale * settings.shapeScale);
         break;
@@ -295,9 +296,33 @@ function Shape({ settings, index, total }: ShapeProps) {
         meshRef.current.position.x = Math.cos(swirlAngle) * swirlR * hAmp;
         meshRef.current.position.y = Math.sin(swirlAngle * 2) * amp * 0.4 * vAmp;
         meshRef.current.position.z = Math.sin(swirlAngle) * swirlR;
-        meshRef.current.rotation.x = swirlAngle * 2;
-        meshRef.current.rotation.y = swirlAngle;
-        meshRef.current.rotation.z = phase;
+        meshRef.current.rotation.x = (swirlAngle * 2) * rotMult;
+        meshRef.current.rotation.y = swirlAngle * rotMult;
+        meshRef.current.rotation.z = phase * rotMult;
+        break;
+      }
+      case 'simpleRotation': {
+        // Simple rotation around selected axis without position changes
+        meshRef.current.position.x = Math.cos(offset) * spread * 0.2 * hAmp;
+        meshRef.current.position.y = Math.sin(offset) * spread * 0.2 * vAmp;
+        meshRef.current.position.z = 0;
+        
+        // Reset all rotations first
+        meshRef.current.rotation.x = 0;
+        meshRef.current.rotation.y = 0;
+        meshRef.current.rotation.z = 0;
+        
+        // Apply rotation to selected axis
+        const rotationValue = phase * rotMult;
+        if (settings.rotationAxis === 'x' || settings.rotationAxis === 'all') {
+          meshRef.current.rotation.x = rotationValue;
+        }
+        if (settings.rotationAxis === 'y' || settings.rotationAxis === 'all') {
+          meshRef.current.rotation.y = rotationValue;
+        }
+        if (settings.rotationAxis === 'z' || settings.rotationAxis === 'all') {
+          meshRef.current.rotation.z = rotationValue;
+        }
         break;
       }
     }
