@@ -55,6 +55,15 @@ export interface AnimationSettings {
   asciiColorMode: boolean; // true = colored ASCII from scene, false = monochrome
   asciiBrightnessBoost: number; // 0-2, additional brightness boost
 
+  // Dithering & Palette Effects
+  ditheringEnabled: boolean;
+  ditheringType: 'bayer' | 'floydSteinberg';
+  ditheringIntensity: number; // 0-1
+  ditheringResolution: number; // 0.05-1.0, lower = faster, in proportion to canvas
+  paletteType: 'full' | 'nes' | 'gameboy' | 'commodore64' | 'atari2600' | 'zxspectrum' | 'amstradcpc' | 'apple2' | 'grayscale';
+  pixelationEnabled: boolean;
+  pixelSize: number; // pixels per block (1-32)
+
   // Export
   exportWidth: number;
   exportHeight: number;

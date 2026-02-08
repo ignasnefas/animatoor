@@ -5,6 +5,9 @@ import * as THREE from 'three';
 import { AnimatedShapes } from './AnimatedShapes';
 import { AnimationSettings } from '../types';
 import { imageDataToASCIICells, renderASCIIToCanvas } from '../utils/asciiRenderer';
+import { applyBayerDithering, applyFloydSteinbergDithering, reduceColorsTopalette } from '../utils/dithering';
+import { palettes } from '../utils/palettes';
+import { applyPixelation } from '../utils/pixelation';
 
 interface SceneLightsProps {
   settings: AnimationSettings;
@@ -105,6 +108,102 @@ export interface SceneHandle {
 interface SceneProps {
   settings: AnimationSettings;
   showBorders: boolean;
+}
+
+/**
+ * Retro Effects Component — applies dithering, palette reduction, and pixelation.
+ * Works on top of or instead of the 3D scene depending on settings.
+ */
+function RetroEffects({ glCanvas, settings }: { glCanvas: HTMLCanvasElement | null; settings: AnimationSettings }) {
+  const retroCanvasRef = useRef<HTMLCanvasElement>(null);
+  const tempCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const rafRef = useRef<number>(0);
+
+  const render = useCallback(() => {
+    if (!glCanvas || !retroCanvasRef.current) return;
+    if (!settings.ditheringEnabled && !settings.pixelationEnabled) return;
+
+    const retroCanvas = retroCanvasRef.current;
+    const w = glCanvas.width;
+    const h = glCanvas.height;
+
+    // Ensure retro canvas matches the GL canvas size
+    if (retroCanvas.width !== w || retroCanvas.height !== h) {
+      retroCanvas.width = w;
+      retroCanvas.height = h;
+    }
+
+    // Temp 2D canvas to read WebGL pixels
+    if (!tempCanvasRef.current) {
+      tempCanvasRef.current = document.createElement('canvas');
+    }
+    const temp = tempCanvasRef.current;
+    if (temp.width !== w || temp.height !== h) {
+      temp.width = w;
+      temp.height = h;
+    }
+
+    const tempCtx = temp.getContext('2d', { willReadFrequently: true });
+    const retroCtx = retroCanvas.getContext('2d', { willReadFrequently: true });
+    if (!tempCtx || !retroCtx) return;
+
+    try {
+      // Copy WebGL pixels to temp canvas
+      tempCtx.drawImage(glCanvas, 0, 0);
+      
+      // Draw temp canvas to retro canvas as base
+      retroCtx.drawImage(temp, 0, 0);
+
+      // Get image data to apply dithering/palette
+      if (settings.ditheringEnabled || (settings.paletteType !== 'full')) {
+        const imageData = retroCtx.getImageData(0, 0, w, h);
+        const palette = palettes[settings.paletteType].colors;
+
+        // Apply dithering or palette reduction
+        if (settings.ditheringEnabled) {
+          if (settings.ditheringType === 'bayer') {
+            applyBayerDithering(imageData.data, w, h, palette, settings.ditheringIntensity, settings.ditheringResolution);
+          } else {
+            applyFloydSteinbergDithering(imageData.data, w, h, palette, settings.ditheringIntensity, settings.ditheringResolution);
+          }
+        } else {
+          // Just reduce colors without dithering
+          reduceColorsTopalette(imageData.data, palette);
+        }
+
+        // Put modified image data back
+        retroCtx.putImageData(imageData, 0, 0);
+      }
+
+      // Apply pixelation on top
+      if (settings.pixelationEnabled && settings.pixelSize > 1) {
+        applyPixelation(retroCtx, retroCanvas, settings.pixelSize);
+      }
+    } catch (_) {
+      // silently fail if canvas not ready
+    }
+
+    rafRef.current = requestAnimationFrame(render);
+  }, [glCanvas, settings]);
+
+  useEffect(() => {
+    if (!settings.ditheringEnabled && !settings.pixelationEnabled) {
+      cancelAnimationFrame(rafRef.current);
+      return;
+    }
+    rafRef.current = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [settings.ditheringEnabled, settings.pixelationEnabled, render]);
+
+  if (!settings.ditheringEnabled && !settings.pixelationEnabled) return null;
+
+  return (
+    <canvas
+      ref={retroCanvasRef}
+      className="absolute inset-0 w-full h-full"
+      style={{ zIndex: 10 }}
+    />
+  );
 }
 
 /**
@@ -294,6 +393,7 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene({ settin
           />
         )}
       </Canvas>
+      <RetroEffects glCanvas={canvasRef.current} settings={settings} />
       <ASCIIEffect glCanvas={canvasRef.current} settings={settings} />
       {showBorders && <ResolutionBorders settings={settings} containerRef={containerRef} />}
     </div>

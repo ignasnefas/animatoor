@@ -1,6 +1,7 @@
 import { AnimationSettings, GeometryType, AnimationType } from '../types';
 import { Preset } from '../types';
 import { presets } from '../presets';
+import { paletteList } from '../utils/palettes';
 import {
   Palette,
   Box,
@@ -373,6 +374,64 @@ export function SettingsPanel({
               <SliderControl label="Gamma" value={settings.asciiGamma} min={0.5} max={2} step={0.1} onChange={(v) => update({ asciiGamma: v })} />
               <ToggleControl label="Invert" value={settings.asciiInvert} onChange={(v) => update({ asciiInvert: v })} />
             </>
+          )}
+        </Section>
+
+        {/* Retro Effects */}
+        <Section title="Retro Effects" icon={Sparkles} defaultOpen={false}>
+          {/* Dithering */}
+          <ToggleControl label="Dithering" value={settings.ditheringEnabled} onChange={(v) => update({ ditheringEnabled: v })} />
+          {settings.ditheringEnabled && (
+            <>
+              <SelectControl
+                label="Dither Type"
+                value={settings.ditheringType}
+                options={[
+                  { value: 'bayer', label: 'Bayer (Ordered)' },
+                  { value: 'floydSteinberg', label: 'Floyd-Steinberg (Diffusion)' },
+                ]}
+                onChange={(v) => update({ ditheringType: v as 'bayer' | 'floydSteinberg' })}
+              />
+              <SliderControl
+                label="Dither Intensity"
+                value={settings.ditheringIntensity}
+                min={0}
+                max={1}
+                step={0.1}
+                onChange={(v) => update({ ditheringIntensity: v })}
+              />
+              <SliderControl
+                label="Dither Resolution"
+                value={settings.ditheringResolution}
+                min={0.05}
+                max={1}
+                step={0.05}
+                onChange={(v) => update({ ditheringResolution: v })}
+                suffix=" (lower = faster)"
+              />
+            </>
+          )}
+
+          {/* Palette */}
+          <SelectControl
+            label="Palette"
+            value={settings.paletteType}
+            options={paletteList}
+            onChange={(v) => update({ paletteType: v as any })}
+          />
+
+          {/* Pixelation */}
+          <ToggleControl label="Pixelation" value={settings.pixelationEnabled} onChange={(v) => update({ pixelationEnabled: v })} />
+          {settings.pixelationEnabled && (
+            <SliderControl
+              label="Pixel Size"
+              value={settings.pixelSize}
+              min={1}
+              max={32}
+              step={1}
+              onChange={(v) => update({ pixelSize: v })}
+              suffix="px"
+            />
           )}
         </Section>
 
