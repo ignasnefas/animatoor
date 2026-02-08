@@ -1,0 +1,390 @@
+import { AnimationSettings, GeometryType, AnimationType } from '../types';
+import { Preset } from '../types';
+import { presets } from '../presets';
+import {
+  Palette,
+  Box,
+  Zap,
+  Camera,
+  Download,
+  ChevronDown,
+  ChevronRight,
+  RotateCcw,
+  Sparkles,
+  Code2,
+} from 'lucide-react';
+import { useState } from 'react';
+
+interface SettingsPanelProps {
+  settings: AnimationSettings;
+  onSettingsChange: (settings: AnimationSettings) => void;
+  onExport: () => void;
+  isExporting: boolean;
+  exportProgress: number;
+  onApplyPreset: (preset: Preset) => void;
+  onReset: () => void;
+}
+
+const geometryTypes: { value: GeometryType; label: string }[] = [
+  { value: 'torusKnot', label: 'Torus Knot' },
+  { value: 'torus', label: 'Torus' },
+  { value: 'icosahedron', label: 'Icosahedron' },
+  { value: 'octahedron', label: 'Octahedron' },
+  { value: 'dodecahedron', label: 'Dodecahedron' },
+  { value: 'tetrahedron', label: 'Tetrahedron' },
+  { value: 'cube', label: 'Cube' },
+  { value: 'sphere', label: 'Sphere' },
+  { value: 'cylinder', label: 'Cylinder' },
+  { value: 'cone', label: 'Cone' },
+  { value: 'pyramid', label: 'Pyramid' },
+  { value: 'plane', label: 'Plane' },
+  { value: 'ring', label: 'Ring' },
+  { value: 'prism', label: 'Prism' },
+];
+
+const animationTypes: { value: AnimationType; label: string }[] = [
+  { value: 'orbit', label: 'Orbit' },
+  { value: 'breathe', label: 'Breathe' },
+  { value: 'spiral', label: 'Spiral' },
+  { value: 'wave', label: 'Wave' },
+  { value: 'explode', label: 'Explode & Reform' },
+  { value: 'morph', label: 'Morph' },
+  { value: 'cascade', label: 'Cascade' },
+  { value: 'vortex', label: 'Vortex' },
+  { value: 'pendulum', label: 'Pendulum' },
+  { value: 'kaleidoscope', label: 'Kaleidoscope' },
+];
+
+function Section({ title, icon: Icon, children, defaultOpen = true }: {
+  title: string;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="border-b border-white/5">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-white/90 hover:bg-white/5 transition-colors"
+      >
+        <Icon size={16} className="text-violet-400" />
+        <span className="flex-1">{title}</span>
+        {open ? <ChevronDown size={14} className="text-white/40" /> : <ChevronRight size={14} className="text-white/40" />}
+      </button>
+      {open && <div className="px-4 pb-4 space-y-3">{children}</div>}
+    </div>
+  );
+}
+
+function SliderControl({ label, value, min, max, step, onChange, suffix = '' }: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+  suffix?: string;
+}) {
+  return (
+    <div>
+      <div className="flex justify-between mb-1">
+        <label className="text-xs text-white/60">{label}</label>
+        <span className="text-xs text-white/40">{value}{suffix}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-violet-500
+          [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5
+          [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-violet-500 [&::-webkit-slider-thumb]:shadow-lg
+          [&::-webkit-slider-thumb]:shadow-violet-500/30"
+      />
+    </div>
+  );
+}
+
+function SelectControl({ label, value, options, onChange }: {
+  label: string;
+  value: string;
+  options: readonly { value: string; label: string }[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="text-xs text-white/60 mb-1 block">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90
+          focus:outline-none focus:border-violet-500/50 appearance-none cursor-pointer"
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value} className="bg-gray-900">
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function ColorControl({ label, value, onChange }: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative">
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-8 h-8 rounded-lg cursor-pointer border border-white/10 bg-transparent [&::-webkit-color-swatch-wrapper]:p-0.5 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-none"
+        />
+      </div>
+      <div className="flex-1">
+        <label className="text-xs text-white/60">{label}</label>
+        <p className="text-xs text-white/30 font-mono">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function ToggleControl({ label, value, onChange }: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <label className="text-xs text-white/60">{label}</label>
+      <button
+        onClick={() => onChange(!value)}
+        className={`relative w-10 h-5 rounded-full transition-colors ${value ? 'bg-violet-500' : 'bg-white/10'}`}
+      >
+        <div
+          className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${value ? 'translate-x-5' : 'translate-x-0.5'}`}
+        />
+      </button>
+    </div>
+  );
+}
+
+export function SettingsPanel({
+  settings,
+  onSettingsChange,
+  onExport,
+  isExporting,
+  exportProgress,
+  onApplyPreset,
+  onReset,
+}: SettingsPanelProps) {
+  const update = (partial: Partial<AnimationSettings>) => {
+    onSettingsChange({ ...settings, ...partial });
+  };
+
+  return (
+    <div className="h-full flex flex-col bg-[#0d0d14]/95 backdrop-blur-xl border-l border-white/5">
+      {/* Header */}
+      <div className="px-4 py-4 border-b border-white/5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+              <Sparkles size={16} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-sm font-bold text-white">LoopForge</h1>
+              <p className="text-[10px] text-white/40">3D Loop Generator</p>
+            </div>
+          </div>
+          <button
+            onClick={onReset}
+            className="p-2 rounded-lg hover:bg-white/5 text-white/40 hover:text-white/70 transition-colors"
+            title="Reset to defaults"
+          >
+            <RotateCcw size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10">
+        {/* Presets */}
+        <Section title="Presets" icon={Sparkles}>
+          <div className="grid grid-cols-2 gap-2">
+            {presets.map((preset) => (
+              <button
+                key={preset.id}
+                onClick={() => onApplyPreset(preset)}
+                className="flex flex-col items-center gap-1 p-2.5 rounded-xl bg-white/5 hover:bg-white/10
+                  border border-white/5 hover:border-violet-500/30 transition-all text-center group"
+              >
+                <span className="text-xl group-hover:scale-110 transition-transform">{preset.thumbnail}</span>
+                <span className="text-[10px] font-medium text-white/70 leading-tight">{preset.name}</span>
+              </button>
+            ))}
+          </div>
+        </Section>
+
+        {/* Geometry */}
+        <Section title="Geometry" icon={Box}>
+          <SelectControl
+            label="Shape"
+            value={settings.geometryType}
+            options={geometryTypes}
+            onChange={(v) => update({ geometryType: v as GeometryType })}
+          />
+          <SliderControl label="Count" value={settings.shapeCount} min={1} max={30} step={1} onChange={(v) => update({ shapeCount: v })} />
+          <SliderControl label="Scale" value={settings.shapeScale} min={0.1} max={3} step={0.1} onChange={(v) => update({ shapeScale: v })} />
+          <ToggleControl label="Wireframe" value={settings.wireframe} onChange={(v) => update({ wireframe: v })} />
+          <SliderControl label="Metalness" value={settings.metalness} min={0} max={1} step={0.05} onChange={(v) => update({ metalness: v })} />
+          <SliderControl label="Roughness" value={settings.roughness} min={0} max={1} step={0.05} onChange={(v) => update({ roughness: v })} />
+        </Section>
+
+        {/* Colors */}
+        <Section title="Colors" icon={Palette}>
+          <ColorControl label="Primary Color" value={settings.shapeColor} onChange={(v) => update({ shapeColor: v })} />
+          <ColorControl label="Secondary Color" value={settings.shapeColor2} onChange={(v) => update({ shapeColor2: v })} />
+          <ColorControl label="Background" value={settings.backgroundColor} onChange={(v) => update({ backgroundColor: v })} />
+        </Section>
+
+        {/* Animation */}
+        <Section title="Animation" icon={Zap}>
+          <SelectControl
+            label="Type"
+            value={settings.animationType}
+            options={animationTypes}
+            onChange={(v) => update({ animationType: v as AnimationType })}
+          />
+          <SliderControl label="Loop Duration" value={settings.loopDuration} min={1} max={10} step={0.5} onChange={(v) => update({ loopDuration: v })} suffix="s" />
+          <SliderControl label="Speed" value={settings.speed} min={0.1} max={3} step={0.1} onChange={(v) => update({ speed: v })} suffix="x" />
+          <SliderControl label="Amplitude" value={settings.amplitude} min={0.1} max={3} step={0.1} onChange={(v) => update({ amplitude: v })} />
+          <SliderControl label="Spread" value={settings.spread} min={0.5} max={8} step={0.5} onChange={(v) => update({ spread: v })} />
+        </Section>
+
+        {/* Camera */}
+        <Section title="Camera" icon={Camera} defaultOpen={false}>
+          <SliderControl label="Distance" value={settings.cameraDistance} min={2} max={15} step={0.5} onChange={(v) => update({ cameraDistance: v })} />
+          <ToggleControl label="Auto Rotate" value={settings.cameraAutoRotate} onChange={(v) => update({ cameraAutoRotate: v })} />
+          {settings.cameraAutoRotate && (
+            <SliderControl label="Rotate Speed" value={settings.cameraAutoRotateSpeed} min={0.1} max={3} step={0.1} onChange={(v) => update({ cameraAutoRotateSpeed: v })} />
+          )}
+        </Section>
+
+        {/* Effects */}
+        <Section title="Effects" icon={Sparkles} defaultOpen={false}>
+          <ToggleControl label="Motion Blur" value={settings.motionBlurEnabled} onChange={(v) => update({ motionBlurEnabled: v })} />
+          {settings.motionBlurEnabled && (
+            <SliderControl label="Blur Amount" value={settings.motionBlurAmount} min={0} max={1} step={0.1} onChange={(v) => update({ motionBlurAmount: v })} />
+          )}
+        </Section>
+
+        {/* Render Modes */}
+        <Section title="Render Modes" icon={Code2} defaultOpen={false}>
+          <ToggleControl label="ASCII Effect" value={settings.asciiEnabled} onChange={(v) => update({ asciiEnabled: v })} />
+          {settings.asciiEnabled && (
+            <>
+              <SelectControl
+                label="Charset"
+                value={settings.asciiCharset}
+                options={[
+                  { value: 'standard', label: 'Standard (.:-=+*#%@)' },
+                  { value: 'dense', label: 'Dense (░▒▓█)' },
+                  { value: 'blocks', label: 'Blocks (▁▂▃▄▅▆▇█)' },
+                  { value: 'braille', label: 'Braille (⠁⠃⠇⠏⠟⠿⡿⣿)' },
+                  { value: 'minimal', label: 'Minimal (.*#)' },
+                ]}
+                onChange={(v) => update({ asciiCharset: v as 'standard' | 'dense' | 'minimal' | 'blocks' | 'braille' })}
+              />
+              <SliderControl label="Resolution" value={settings.asciiResolution} min={30} max={160} step={5} onChange={(v) => update({ asciiResolution: v })} suffix=" chars" />
+              <ToggleControl label="Color Mode" value={settings.asciiColorMode} onChange={(v) => update({ asciiColorMode: v })} />
+              {!settings.asciiColorMode && (
+                <div className="space-y-2">
+                  <label className="text-xs text-white/60">Text Color</label>
+                  <input
+                    type="color"
+                    value={settings.asciiTextColor}
+                    onChange={(e) => update({ asciiTextColor: e.target.value })}
+                    className="w-full h-8 rounded cursor-pointer"
+                  />
+                </div>
+              )}
+              <SliderControl label="Contrast" value={settings.asciiContrast} min={0.5} max={3} step={0.1} onChange={(v) => update({ asciiContrast: v })} />
+              <ToggleControl label="Invert" value={settings.asciiInvert} onChange={(v) => update({ asciiInvert: v })} />
+            </>
+          )}
+        </Section>
+
+        {/* Export */}
+        <Section title="Export" icon={Download} defaultOpen={false}>
+          <SelectControl
+            label="Resolution"
+            value={`${settings.exportWidth}x${settings.exportHeight}`}
+            options={[
+              { value: '720x720', label: '720 × 720 (Square)' },
+              { value: '1080x1080', label: '1080 × 1080 (Instagram)' },
+              { value: '1080x1920', label: '1080 × 1920 (Story/Reel)' },
+              { value: '1920x1080', label: '1920 × 1080 (Landscape)' },
+              { value: '2160x2160', label: '2160 × 2160 (4K Square)' },
+            ]}
+            onChange={(v) => {
+              const [w, h] = v.split('x').map(Number);
+              update({ exportWidth: w, exportHeight: h });
+            }}
+          />
+          <SliderControl label="FPS" value={settings.exportFps} min={15} max={60} step={5} onChange={(v) => update({ exportFps: v })} />
+          <SliderControl label="Loop Count" value={settings.exportLoopCount} min={1} max={5} step={1} onChange={(v) => update({ exportLoopCount: v })} suffix="x" />
+          <ToggleControl label="Seamless Loop Verification" value={settings.seamlessLoopVerification} onChange={(v) => update({ seamlessLoopVerification: v })} />
+          <SelectControl
+            label="Format"
+            value={settings.exportFormat}
+            options={[
+              { value: 'webm', label: 'WebM (Best Quality)' },
+            ]}
+            onChange={(v) => update({ exportFormat: v as 'webm' | 'gif' })}
+          />
+        </Section>
+      </div>
+
+      {/* Export button */}
+      <div className="p-4 border-t border-white/5">
+        <button
+          onClick={onExport}
+          disabled={isExporting}
+          className={`w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all
+            ${isExporting
+              ? 'bg-violet-500/20 text-violet-300 cursor-not-allowed'
+              : 'bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white hover:from-violet-600 hover:to-fuchsia-600 shadow-lg shadow-violet-500/20 hover:shadow-violet-500/40'
+            }`}
+        >
+          {isExporting ? (
+            <>
+              <div className="w-4 h-4 border-2 border-violet-300 border-t-transparent rounded-full animate-spin" />
+              <span>Exporting... {Math.round(exportProgress * 100)}%</span>
+            </>
+          ) : (
+            <>
+              <Download size={16} />
+              <span>Export Video</span>
+            </>
+          )}
+        </button>
+        {isExporting && (
+          <div className="mt-2 h-1.5 bg-white/5 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full transition-all duration-300"
+              style={{ width: `${exportProgress * 100}%` }}
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
