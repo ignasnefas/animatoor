@@ -2,6 +2,93 @@ import { useRef, useState, useCallback } from 'react';
 import { AnimationSettings } from '../types';
 import { imageDataToASCIICells, renderASCIIToCanvas } from '../utils/asciiRenderer';
 
+// Calculate bitrate based on resolution and quality
+function calculateBitrate(width: number, height: number, quality: 'good' | 'excellent' | 'maximum', fps: number = 30): number {
+  const pixelCount = width * height;
+  const baseMultiplier = {
+    'good': 0.6,
+    'excellent': 1.5,
+    'maximum': 3.0,
+  }[quality];
+
+  // Calculate bitrate: roughly 0.1-0.3 bits per pixel per second for good quality
+  // Adjusted for fps and quality tier
+  const bitrate = Math.round(pixelCount * fps * baseMultiplier);
+  
+  // Minimum and maximum bounds
+  return Math.max(500000, Math.min(bitrate, 80000000)); // 0.5Mbps to 80Mbps
+}
+
+// Generate frames for GIF encoding
+async function generateGifFrames(
+  canvas: HTMLCanvasElement,
+  settings: AnimationSettings,
+  cropX: number,
+  cropY: number,
+  cropWidth: number,
+  cropHeight: number,
+): Promise<ImageData[]> {
+  const frames: ImageData[] = [];
+  const targetDuration = settings.loopDuration * settings.exportLoopCount;
+  const targetFrameCount = Math.round(targetDuration * settings.exportFps);
+  const frameIntervalMs = 1000 / settings.exportFps;
+
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = settings.exportWidth;
+  tempCanvas.height = settings.exportHeight;
+  const tempCtx = tempCanvas.getContext('2d');
+  if (!tempCtx) throw new Error('Failed to create canvas context');
+
+  for (let i = 0; i < targetFrameCount; i++) {
+    // Draw the current frame
+    tempCtx.drawImage(
+      canvas,
+      cropX,
+      cropY,
+      cropWidth,
+      cropHeight,
+      0,
+      0,
+      settings.exportWidth,
+      settings.exportHeight
+    );
+    
+    // Capture frame as ImageData
+    const frameData = tempCtx.getImageData(0, 0, settings.exportWidth, settings.exportHeight);
+    frames.push(frameData);
+
+    // Wait for next frame interval
+    await new Promise(resolve => setTimeout(resolve, frameIntervalMs));
+  }
+
+  return frames;
+}
+
+// Gif.js-style encoder (simple implementation)
+async function encodeGifFromFrames(frames: ImageData[], width: number, height: number, fps: number): Promise<Blob> {
+  // This is a simplified version - for production, you'd want to use gif.js library
+  // For now, we'll create a simple animated GIF using canvas
+  // In a real implementation, you'd use: https://github.com/jnordberg/gif.js
+  
+  // Create a single frame GIF as fallback (user can use GIF alternatives)
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Failed to create canvas context');
+
+  // Draw first frame
+  if (frames.length > 0) {
+    ctx.putImageData(frames[0], 0, 0);
+  }
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+    }, 'image/gif');
+  });
+}
+
 export function useVideoExport() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
@@ -51,6 +138,12 @@ export function useVideoExport() {
         cropWidth = screenHeight * exportAspectRatio;
         cropX = (screenWidth - cropWidth) / 2;
         cropY = 0;
+      }
+
+      // Handle GIF export separately
+      if (settings.exportFormat === 'gif') {
+        // Note: For production GIF support, integrate gif.js library
+        throw new Error('GIF export requires gif.js library installation. Use MP4 or WebM for now.');
       }
 
       let recordingCanvas = canvas;
@@ -145,14 +238,38 @@ export function useVideoExport() {
         (recordingCanvas as any).__compositeCaptureInterval = compositeCaptureLoop;
       }
 
-      const mimeType = 'video/webm;codecs=vp9';
-      const fallbackMime = 'video/webm';
-      
-      const selectedMime = MediaRecorder.isTypeSupported(mimeType) ? mimeType : fallbackMime;
+      // Select MIME type and codec based on format and quality
+      let mimeType: string;
+      let videoBitsPerSecond: number;
+
+      if (settings.exportFormat === 'mp4') {
+        // Try H.264 codec in MP4 container (best compatibility and compression)
+        const mp4Types = [
+          'video/mp4;codecs=avc1',
+          'video/mp4;codecs=avc1.42E01E',
+          'video/mp4;codecs=h264',
+          'video/mp4',
+        ];
+        
+        mimeType = mp4Types.find(type => MediaRecorder.isTypeSupported(type)) || 'video/webm';
+        videoBitsPerSecond = calculateBitrate(settings.exportWidth, settings.exportHeight, settings.exportQuality, settings.exportFps);
+      } else {
+        // WebM with VP9 or VP8
+        const webmTypes = [
+          'video/webm;codecs=vp9',
+          'video/webm;codecs=vp9,opus',
+          'video/webm;codecs=vp8',
+          'video/webm',
+        ];
+        
+        mimeType = webmTypes.find(type => MediaRecorder.isTypeSupported(type)) || 'video/webm';
+        videoBitsPerSecond = calculateBitrate(settings.exportWidth, settings.exportHeight, settings.exportQuality, settings.exportFps);
+      }
       
       const mediaRecorder = new MediaRecorder(recordingStream, {
-        mimeType: selectedMime,
-        videoBitsPerSecond: 8000000,
+        mimeType,
+        videoBitsPerSecond,
+        audioBitsPerSecond: 128000,
       });
 
       const chunks: Blob[] = [];
@@ -194,11 +311,13 @@ export function useVideoExport() {
           }
 
           if (!abortRef.current && chunks.length > 0) {
-            const blob = new Blob(chunks, { type: selectedMime });
+            const blob = new Blob(chunks, { type: mimeType });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `loopforge-${settings.animationType}-${Date.now()}.webm`;
+            
+            const formatExt = settings.exportFormat === 'mp4' ? 'mp4' : 'webm';
+            a.download = `loopforge-${settings.animationType}-${Date.now()}.${formatExt}`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -211,7 +330,7 @@ export function useVideoExport() {
 
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Export failed. Please try again.');
+      alert(`Export failed: ${error instanceof Error ? error.message : 'Please try again.'}`);
     } finally {
       setIsExporting(false);
       setExportProgress(0);

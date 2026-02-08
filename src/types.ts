@@ -56,7 +56,8 @@ export interface AnimationSettings {
   exportWidth: number;
   exportHeight: number;
   exportFps: number;
-  exportFormat: 'webm' | 'gif';
+  exportFormat: 'webm' | 'mp4' | 'gif';
+  exportQuality: 'good' | 'excellent' | 'maximum';
   exportLoopCount: number;
   seamlessLoopVerification: boolean;
 }

@@ -47,6 +47,7 @@ export const defaultSettings: AnimationSettings = {
   exportHeight: 1080,
   exportFps: 30,
   exportFormat: 'webm',
+  exportQuality: 'excellent',
   exportLoopCount: 1,
   seamlessLoopVerification: true,
 };

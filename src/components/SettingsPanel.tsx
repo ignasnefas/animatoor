@@ -370,15 +370,27 @@ export function SettingsPanel({
           />
           <SliderControl label="FPS" value={settings.exportFps} min={15} max={60} step={5} onChange={(v) => update({ exportFps: v })} />
           <SliderControl label="Loop Count" value={settings.exportLoopCount} min={1} max={5} step={1} onChange={(v) => update({ exportLoopCount: v })} suffix="x" />
-          <ToggleControl label="Seamless Loop Verification" value={settings.seamlessLoopVerification} onChange={(v) => update({ seamlessLoopVerification: v })} />
+          <SelectControl
+            label="Quality"
+            value={settings.exportQuality}
+            options={[
+              { value: 'good', label: 'Good (Smaller file)' },
+              { value: 'excellent', label: 'Excellent (Balanced)' },
+              { value: 'maximum', label: 'Maximum (Best quality)' },
+            ]}
+            onChange={(v) => update({ exportQuality: v as 'good' | 'excellent' | 'maximum' })}
+          />
           <SelectControl
             label="Format"
             value={settings.exportFormat}
             options={[
-              { value: 'webm', label: 'WebM (Best Quality)' },
+              { value: 'webm', label: 'WebM (VP9, best compression)' },
+              { value: 'mp4', label: 'MP4 (H.264, best compatibility)' },
+              { value: 'gif', label: 'GIF (requires gif.js library)' },
             ]}
-            onChange={(v) => update({ exportFormat: v as 'webm' | 'gif' })}
+            onChange={(v) => update({ exportFormat: v as 'webm' | 'mp4' | 'gif' })}
           />
+          <ToggleControl label="Seamless Loop Verification" value={settings.seamlessLoopVerification} onChange={(v) => update({ seamlessLoopVerification: v })} />
           <ToggleControl label="Show Resolution Borders" value={showBorders} onChange={onToggleBorders} />
         </Section>
       </div>
