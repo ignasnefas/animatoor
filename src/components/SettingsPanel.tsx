@@ -13,6 +13,8 @@ import {
   RotateCcw,
   Sparkles,
   Code2,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -26,6 +28,8 @@ interface SettingsPanelProps {
   onReset: () => void;
   showBorders: boolean;
   onToggleBorders: () => void;
+  showOverlays: boolean;
+  onToggleOverlays: () => void;
 }
 
 const geometryTypes: { value: GeometryType; label: string }[] = [
@@ -207,6 +211,8 @@ export function SettingsPanel({
   onReset,
   showBorders,
   onToggleBorders,
+  showOverlays,
+  onToggleOverlays,
 }: SettingsPanelProps) {
   const update = (partial: Partial<AnimationSettings>) => {
     onSettingsChange({ ...settings, ...partial });
@@ -226,13 +232,22 @@ export function SettingsPanel({
               <p className="text-[10px] text-white/40">3D Loop Generator</p>
             </div>
           </div>
-          <button
-            onClick={onReset}
-            className="p-2 rounded-lg hover:bg-white/5 text-white/40 hover:text-white/70 transition-colors"
-            title="Reset to defaults"
-          >
-            <RotateCcw size={14} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onToggleOverlays}
+              className="p-2 rounded-lg hover:bg-white/5 text-white/40 hover:text-white/70 transition-colors"
+              title={showOverlays ? 'Hide Overlays' : 'Show Overlays'}
+            >
+              {showOverlays ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+            <button
+              onClick={onReset}
+              className="p-2 rounded-lg hover:bg-white/5 text-white/40 hover:text-white/70 transition-colors"
+              title="Reset to defaults"
+            >
+              <RotateCcw size={14} />
+            </button>
+          </div>
         </div>
       </div>
 

@@ -47,6 +47,7 @@ interface CameraControllerProps {
   cameraAutoRotate: boolean;
   cameraAutoRotateSpeed: number;
   loopDuration: number;
+  isPaused?: boolean;
 }
 
 function CameraController({ 
@@ -55,6 +56,7 @@ function CameraController({
   cameraAutoRotate, 
   cameraAutoRotateSpeed,
   loopDuration,
+  isPaused = false,
 }: CameraControllerProps) {
   const { camera } = useThree();
   const prevPresetRef = useRef<string>(cameraPreset);
@@ -93,7 +95,7 @@ function CameraController({
 
   // Use faster math for auto-rotation
   useFrame(({ clock }) => {
-    if (cameraAutoRotate) {
+    if (cameraAutoRotate && !isPaused) {
       const elapsed = clock.getElapsedTime();
       const loopT = (elapsed % loopDuration) / loopDuration;
       const angle = loopT * Math.PI * 2 * cameraAutoRotateSpeed * 0.5;
@@ -121,6 +123,8 @@ export interface SceneHandle {
 interface SceneProps {
   settings: AnimationSettings;
   showBorders: boolean;
+  showOverlays: boolean;
+  isPaused?: boolean;
 }
 
 /**
@@ -452,7 +456,7 @@ const ResolutionBorders = memo(function ResolutionBorders({
   );
 });
 
-export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene({ settings, showBorders }, ref) {
+export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene({ settings, showBorders, showOverlays, isPaused = false }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -490,12 +494,13 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene({ settin
           cameraAutoRotate={settings.cameraAutoRotate}
           cameraAutoRotateSpeed={settings.cameraAutoRotateSpeed}
           loopDuration={settings.loopDuration}
+          isPaused={isPaused}
         />
         <SceneLights 
           shapeColor={settings.shapeColor}
           shapeColor2={settings.shapeColor2}
         />
-        <AnimatedShapes settings={settings} />
+        <AnimatedShapes settings={settings} isPaused={isPaused} />
         <Environment preset="city" environmentIntensity={0.2} />
         {!settings.cameraAutoRotate && (
           <OrbitControls
@@ -533,7 +538,7 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene({ settin
         asciiBackgroundOpacity={settings.asciiBackgroundOpacity}
         asciiBrightnessBoost={settings.asciiBrightnessBoost}
       />
-      {showBorders && (
+      {showBorders && showOverlays && (
         <ResolutionBorders 
           exportWidth={settings.exportWidth}
           exportHeight={settings.exportHeight}

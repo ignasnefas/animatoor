@@ -154,9 +154,10 @@ interface ShapeProps {
   settings: AnimationSettings;
   index: number;
   total: number;
+  isPaused?: boolean;
 }
 
-function Shape({ settings, index, total }: ShapeProps) {
+function Shape({ settings, index, total, isPaused = false }: ShapeProps) {
   const meshRef = useRef<THREE.Mesh>(null);
 
   const geometry = useMemo(() => createGeometry(settings.geometryType, settings.geometryDetail), [settings.geometryType, settings.geometryDetail]);
@@ -187,7 +188,7 @@ function Shape({ settings, index, total }: ShapeProps) {
   }, [settings.shapeColor, settings.shapeColor2, settings.wireframe, settings.metalness, settings.roughness, index, total]);
 
   useFrame(({ clock }) => {
-    if (!meshRef.current) return;
+    if (!meshRef.current || isPaused) return;
 
     // Get raw elapsed time
     const t = clock.getElapsedTime();
@@ -447,14 +448,15 @@ function Shape({ settings, index, total }: ShapeProps) {
 
 interface AnimatedShapesProps {
   settings: AnimationSettings;
+  isPaused?: boolean;
 }
 
-export function AnimatedShapes({ settings }: AnimatedShapesProps) {
+export function AnimatedShapes({ settings, isPaused = false }: AnimatedShapesProps) {
   const shapes = useMemo(() => {
     return Array.from({ length: settings.shapeCount }, (_, i) => (
-      <Shape key={`${i}-${settings.geometryType}-${settings.shapeCount}`} settings={settings} index={i} total={settings.shapeCount} />
+      <Shape key={`${i}-${settings.geometryType}-${settings.shapeCount}`} settings={settings} index={i} total={settings.shapeCount} isPaused={isPaused} />
     ));
-  }, [settings]);
+  }, [settings, isPaused]);
 
   return <>{shapes}</>;
 }

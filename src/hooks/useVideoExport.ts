@@ -162,9 +162,9 @@ export function useVideoExport() {
         if (!tempCtx) throw new Error('Failed to create canvas context');
 
         // Processing canvas for effects
-        const processScale = 0.5;
-        const processWidth = Math.round(cropWidth * processScale);
-        const processHeight = Math.round(cropHeight * processScale);
+        const processScale = 1.0;
+        const processWidth = Math.round(settings.exportWidth * processScale);
+        const processHeight = Math.round(settings.exportHeight * processScale);
         const processCanvas = document.createElement('canvas');
         processCanvas.width = processWidth;
         processCanvas.height = processHeight;
@@ -451,20 +451,29 @@ export function useVideoExport() {
 
         ppMediaRecorder.start(100);
 
-        // Play back pre-processed frames at correct FPS
+        // Play back pre-processed frames at correct FPS with precise timing
+        const startPlaybackTime = Date.now();
         let playbackIndex = 1; // Frame 0 already drawn
+        
+        const scheduleFrame = (index: number) => {
+          if (index >= rawFrames.length || abortRef.current) {
+            // Small delay to ensure last frame is captured by MediaRecorder
+            setTimeout(() => ppMediaRecorder.stop(), 100);
+            return;
+          }
+          
+          ppCompCtx.putImageData(rawFrames[index], 0, 0);
+          setExportProgress(0.6 + (index / rawFrames.length) * 0.4);
+          
+          // Schedule next frame
+          const nextTime = startPlaybackTime + (index + 1) * frameIntervalMs;
+          const delay = Math.max(0, nextTime - Date.now());
+          setTimeout(() => scheduleFrame(index + 1), delay);
+        };
+        
+        // Start playback
         await new Promise<void>((resolve) => {
-          const playbackLoop = setInterval(() => {
-            if (playbackIndex >= rawFrames.length || abortRef.current) {
-              clearInterval(playbackLoop);
-              // Small delay to ensure last frame is captured by MediaRecorder
-              setTimeout(() => ppMediaRecorder.stop(), 100);
-              return;
-            }
-            ppCompCtx.putImageData(rawFrames[playbackIndex], 0, 0);
-            setExportProgress(0.6 + (playbackIndex / rawFrames.length) * 0.4);
-            playbackIndex++;
-          }, frameIntervalMs);
+          scheduleFrame(playbackIndex);
 
           ppMediaRecorder.onstop = () => {
             if (!abortRef.current && ppChunks.length > 0) {
@@ -565,11 +574,10 @@ export function useVideoExport() {
         recordingCanvas = compositeCanvas;
         recordingStream = compositeCanvas.captureStream(settings.exportFps);
 
-        // Downscaled processing canvas for dithering (huge performance gain)
-        // Process at 50% resolution to match preview and drastically speed up dithering
-        const processScale = 0.5;
-        const processWidth = Math.round(cropWidth * processScale);
-        const processHeight = Math.round(cropHeight * processScale);
+        // Process at full resolution for better quality
+        const processScale = 1.0;
+        const processWidth = Math.round(settings.exportWidth * processScale);
+        const processHeight = Math.round(settings.exportHeight * processScale);
         
         const processCanvas = document.createElement('canvas');
         processCanvas.width = processWidth;
