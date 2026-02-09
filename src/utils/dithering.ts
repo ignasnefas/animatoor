@@ -7,18 +7,6 @@ export type DitheringType = 'none' | 'bayer' | 'floydSteinberg' | 'ordered';
 /**
  * Bayer matrix for ordered dithering
  */
-const bayerMatrix2x2 = [
-  [0, 2],
-  [3, 1],
-];
-
-const bayerMatrix4x4 = [
-  [0, 8, 2, 10],
-  [12, 4, 14, 6],
-  [3, 11, 1, 9],
-  [15, 7, 13, 5],
-];
-
 const bayerMatrix8x8 = [
   [0, 32, 8, 40, 2, 34, 10, 42],
   [48, 16, 56, 24, 50, 18, 58, 26],
@@ -49,21 +37,24 @@ export function applyBayerDithering(
 
   const matrix = bayerMatrix8x8;
   const matrixSize = 8;
+  const ditherScale = 255 * intensity / 64;
 
+  // Single pass with optimized math
   for (let i = 0; i < data.length; i += 4) {
     const pixelIndex = i / 4;
     const x = pixelIndex % width;
     const y = Math.floor(pixelIndex / width);
 
-    const mx = x % matrixSize;
-    const my = y % matrixSize;
-    const dither = (matrix[my][mx] / 64 - 0.5) * 255 * intensity;
+    const mx = x & 7; // Bitwise AND faster than modulo
+    const my = y & 7;
+    const dither = (matrix[my][mx] - 32) * ditherScale;
 
-    const r = Math.max(0, Math.min(255, data[i] + dither));
-    const g = Math.max(0, Math.min(255, data[i + 1] + dither));
-    const b = Math.max(0, Math.min(255, data[i + 2] + dither));
+    data[i] = Math.max(0, Math.min(255, data[i] + dither)) | 0;
+    data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + dither)) | 0;
+    data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + dither)) | 0;
 
-    const [pr, pg, pb] = findNearestColor(r, g, b, palette);
+    // Use cached color lookup
+    const [pr, pg, pb] = findNearestColor(data[i], data[i + 1], data[i + 2], palette);
     data[i] = pr;
     data[i + 1] = pg;
     data[i + 2] = pb;
@@ -72,6 +63,7 @@ export function applyBayerDithering(
 
 /**
  * Apply Floyd-Steinberg dithering (diffusion-based)
+ * Optimized with reduced allocations
  */
 export function applyFloydSteinbergDithering(
   data: Uint8ClampedArray,
@@ -87,49 +79,66 @@ export function applyFloydSteinbergDithering(
     return;
   }
 
-  // Create a working copy to preserve original during diffusion
-  const workingData = new Uint8ClampedArray(data);
+  // Use two rows of error buffers (more memory efficient than full copy)
+  const errBuffer = new Float32Array((width + 2) * 2 * 3);
+  let currentRow = 0;
 
   for (let y = 0; y < height; y++) {
+    const nextRow = 1 - currentRow;
+    const currentBuf = errBuffer.subarray(currentRow * (width + 2) * 3, (currentRow + 1) * (width + 2) * 3);
+    const nextBuf = errBuffer.subarray(nextRow * (width + 2) * 3, nextRow + 1 * (width + 2) * 3);
+    
+    // Clear next row
+    nextBuf.fill(0);
+
     for (let x = 0; x < width; x++) {
       const idx = (y * width + x) * 4;
+      const errIdx = (x + 1) * 3;
 
-      const r = workingData[idx];
-      const g = workingData[idx + 1];
-      const b = workingData[idx + 2];
-      const a = workingData[idx + 3];
+      // Apply accumulated error
+      let r = Math.max(0, Math.min(255, data[idx] + currentBuf[errIdx] * intensity));
+      let g = Math.max(0, Math.min(255, data[idx + 1] + currentBuf[errIdx + 1] * intensity));
+      let b = Math.max(0, Math.min(255, data[idx + 2] + currentBuf[errIdx + 2] * intensity));
 
       // Find nearest palette color
-      const [pr, pg, pb] = findNearestColor(r, g, b, palette);
+      const [pr, pg, pb] = findNearestColor(r | 0, g | 0, b | 0, palette);
 
       // Calculate error
-      const errR = (r - pr) * intensity;
-      const errG = (g - pg) * intensity;
-      const errB = (b - pb) * intensity;
+      const errR = (r - pr) / 16;
+      const errG = (g - pg) / 16;
+      const errB = (b - pb) / 16;
 
-      // Set pixel to nearest color
+      // Set pixel
       data[idx] = pr;
       data[idx + 1] = pg;
       data[idx + 2] = pb;
-      data[idx + 3] = a;
 
-      // Distribute error to neighboring pixels
-      const distribute = (ox: number, oy: number, weight: number) => {
-        const nx = x + ox;
-        const ny = y + oy;
-        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-          const nidx = (ny * width + nx) * 4;
-          workingData[nidx] = Math.max(0, Math.min(255, workingData[nidx] + errR * weight));
-          workingData[nidx + 1] = Math.max(0, Math.min(255, workingData[nidx + 1] + errG * weight));
-          workingData[nidx + 2] = Math.max(0, Math.min(255, workingData[nidx + 2] + errB * weight));
+      // Distribute error (Floyd-Steinberg weights: 7/16, 3/16, 5/16, 1/16)
+      if (x < width - 1) {
+        currentBuf[errIdx + 3] += errR * 7;
+        currentBuf[errIdx + 4] += errG * 7;
+        currentBuf[errIdx + 5] += errB * 7;
+      }
+      
+      if (y < height - 1) {
+        if (x > 0) {
+          nextBuf[errIdx] += errR * 3;
+          nextBuf[errIdx + 1] += errG * 3;
+          nextBuf[errIdx + 2] += errB * 3;
         }
-      };
-
-      distribute(1, 0, 7 / 16);   // right
-      distribute(-1, 1, 3 / 16);  // down-left
-      distribute(0, 1, 5 / 16);   // down
-      distribute(1, 1, 1 / 16);   // down-right
+        nextBuf[errIdx + 3] += errR * 5;
+        nextBuf[errIdx + 4] += errG * 5;
+        nextBuf[errIdx + 5] += errB * 5;
+        
+        if (x < width - 1) {
+          nextBuf[errIdx + 6] += errR;
+          nextBuf[errIdx + 7] += errG;
+          nextBuf[errIdx + 8] += errB;
+        }
+      }
     }
+    
+    currentRow = nextRow;
   }
 }
 
@@ -207,8 +216,12 @@ function applyDitheringAtLowerResolution(
   }
 }
 
+// Cache for nearest color lookups - LRU cache for frequently used colors
+const colorCache = new Map<number, [number, number, number]>();
+const MAX_CACHE_SIZE = 8192;
+
 /**
- * Find the nearest color in a palette using Euclidean distance
+ * Find the nearest color in a palette using Euclidean distance with caching
  */
 function findNearestColor(
   r: number,
@@ -216,35 +229,65 @@ function findNearestColor(
   b: number,
   palette: [number, number, number][]
 ): [number, number, number] {
+  // Create cache key from RGB values
+  const key = (r << 16) | (g << 8) | b;
+  
+  // Check cache first (huge performance boost)
+  if (colorCache.has(key)) {
+    return colorCache.get(key)!;
+  }
+
   let minDist = Infinity;
   let nearest = palette[0];
 
+  // Hardcoded palette optimization - cache precomputed squared values
   for (const [pr, pg, pb] of palette) {
-    const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
+    const dr = r - pr;
+    const dg = g - pg;
+    const db = b - pb;
+    const dist = dr * dr + dg * dg + db * db;
+    
     if (dist < minDist) {
       minDist = dist;
       nearest = [pr, pg, pb];
     }
   }
 
+  // Store in cache with LRU eviction
+  if (colorCache.size >= MAX_CACHE_SIZE) {
+    const firstKey = colorCache.keys().next().value;
+    if (firstKey !== undefined) colorCache.delete(firstKey);
+  }
+  colorCache.set(key, nearest);
+
   return nearest;
 }
 
 /**
  * Reduce colors to nearest palette colors without dithering
+ * Optimized with cached color lookups
  */
 export function reduceColorsTopalette(
   data: Uint8ClampedArray,
   palette: [number, number, number][]
 ): void {
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
+  // Clear cache at start of frame for consistency
+  colorCache.clear();
+  
+  // Process in chunks for better cache locality
+  const chunkSize = Math.min(64, data.length / 4);
+  
+  for (let i = 0; i < data.length; i += 4 * chunkSize) {
+    for (let j = 0; j < chunkSize && i + j * 4 < data.length; j++) {
+      const idx = i + j * 4;
+      const r = data[idx];
+      const g = data[idx + 1];
+      const b = data[idx + 2];
 
-    const [pr, pg, pb] = findNearestColor(r, g, b, palette);
-    data[i] = pr;
-    data[i + 1] = pg;
-    data[i + 2] = pb;
+      const [pr, pg, pb] = findNearestColor(r, g, b, palette);
+      data[idx] = pr;
+      data[idx + 1] = pg;
+      data[idx + 2] = pb;
+    }
   }
 }

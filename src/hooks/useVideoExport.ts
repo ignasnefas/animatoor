@@ -172,12 +172,9 @@ export function useVideoExport() {
         if (!processCtx) throw new Error('Failed to create process context');
 
         for (let i = 0; i < targetFrameCount; i++) {
-          setExportProgress(i / targetFrameCount);
+          setExportProgress((i / targetFrameCount) * 0.5);
 
           if (abortRef.current) break;
-
-          // Simulate time progression for animation
-          const currentTime = (i / settings.exportFps) % settings.loopDuration;
 
           // Wait for frame interval (simulate animation timing)
           await new Promise(resolve => setTimeout(resolve, frameIntervalMs));
@@ -212,32 +209,8 @@ export function useVideoExport() {
                 brightnessBoost: settings.asciiBrightnessBoost,
               });
             } else {
-              // Regular processing with dithering/pixelation
-              processCtx.drawImage(canvas, cropX, cropY, cropWidth, cropHeight, 0, 0, processWidth, processHeight);
-
-              if (settings.ditheringEnabled || (settings.paletteType !== 'full')) {
-                const imageData = processCtx.getImageData(0, 0, processWidth, processHeight);
-                const palette = palettes[settings.paletteType].colors;
-
-                if (settings.ditheringEnabled) {
-                  if (settings.ditheringType === 'bayer') {
-                    applyBayerDithering(imageData.data, processWidth, processHeight, palette, settings.ditheringIntensity, settings.ditheringResolution);
-                  } else {
-                    applyFloydSteinbergDithering(imageData.data, processWidth, processHeight, palette, settings.ditheringIntensity, settings.ditheringResolution);
-                  }
-                } else {
-                  reduceColorsTopalette(imageData.data, palette);
-                }
-
-                processCtx.putImageData(imageData, 0, 0);
-              }
-
-              if (settings.pixelationEnabled && settings.pixelSize > 1) {
-                applyPixelation(processCtx, processCanvas, settings.pixelSize);
-              }
-
-              // Scale to export size
-              tempCtx.drawImage(processCanvas, 0, 0, processWidth, processHeight, 0, 0, settings.exportWidth, settings.exportHeight);
+              // Capture raw frame - effects applied in post-processing pass below
+              tempCtx.drawImage(canvas, cropX, cropY, cropWidth, cropHeight, 0, 0, settings.exportWidth, settings.exportHeight);
             }
 
             // Capture frame
@@ -245,6 +218,50 @@ export function useVideoExport() {
             frames.push(frameData);
           } catch (e) {
             console.warn('Frame capture error:', e);
+          }
+        }
+
+        // Post-processing pass: apply dithering/palette/pixelation to captured frames offline
+        // This avoids temporal drift caused by slow per-frame processing during capture
+        if (!settings.asciiEnabled && !abortRef.current && frames.length > 0 &&
+            (settings.ditheringEnabled || settings.paletteType !== 'full' || (settings.pixelationEnabled && settings.pixelSize > 1))) {
+          for (let i = 0; i < frames.length; i++) {
+            if (abortRef.current) break;
+            setExportProgress(0.5 + (i / frames.length) * 0.3);
+
+            // Put raw frame on temp canvas, downscale to process canvas
+            tempCtx.putImageData(frames[i], 0, 0);
+            processCtx.drawImage(tempCanvas, 0, 0, settings.exportWidth, settings.exportHeight, 0, 0, processWidth, processHeight);
+
+            if (settings.ditheringEnabled || settings.paletteType !== 'full') {
+              const imageData = processCtx.getImageData(0, 0, processWidth, processHeight);
+              const palette = palettes[settings.paletteType].colors;
+
+              if (settings.ditheringEnabled) {
+                if (settings.ditheringType === 'bayer') {
+                  applyBayerDithering(imageData.data, processWidth, processHeight, palette, settings.ditheringIntensity, settings.ditheringResolution);
+                } else {
+                  applyFloydSteinbergDithering(imageData.data, processWidth, processHeight, palette, settings.ditheringIntensity, settings.ditheringResolution);
+                }
+              } else {
+                reduceColorsTopalette(imageData.data, palette);
+              }
+
+              processCtx.putImageData(imageData, 0, 0);
+            }
+
+            if (settings.pixelationEnabled && settings.pixelSize > 1) {
+              applyPixelation(processCtx, processCanvas, settings.pixelSize);
+            }
+
+            // Upscale processed frame to export size and replace in array
+            tempCtx.drawImage(processCanvas, 0, 0, processWidth, processHeight, 0, 0, settings.exportWidth, settings.exportHeight);
+            frames[i] = tempCtx.getImageData(0, 0, settings.exportWidth, settings.exportHeight);
+
+            // Yield to UI thread periodically
+            if (i % 5 === 0) {
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
           }
         }
 
@@ -283,7 +300,7 @@ export function useVideoExport() {
           });
 
           gif.on('progress', (p: number) => {
-            setExportProgress(0.5 + p * 0.5); // 50% for frame generation, 50% for encoding
+            setExportProgress(0.8 + p * 0.2);
           });
 
           gif.render();
@@ -291,6 +308,180 @@ export function useVideoExport() {
           setIsExporting(false);
           setExportProgress(0);
         }
+
+        return;
+      }
+
+      // Handle video export with post-processing effects (dithering, palette, pixelation)
+      // Uses 3-phase approach: capture raw → post-process offline → playback+record
+      // This prevents frame drops caused by expensive per-frame dithering during real-time recording
+      const needsVideoPostProcessing = !settings.asciiEnabled &&
+        (settings.ditheringEnabled || settings.paletteType !== 'full' || (settings.pixelationEnabled && settings.pixelSize > 1));
+
+      if (needsVideoPostProcessing) {
+        // Phase 1: Capture raw frames from the live animation canvas (fast, no effects)
+        const rawFrames: ImageData[] = [];
+        const capCanvas = document.createElement('canvas');
+        capCanvas.width = settings.exportWidth;
+        capCanvas.height = settings.exportHeight;
+        const capCtx = capCanvas.getContext('2d', { willReadFrequently: true });
+        if (!capCtx) throw new Error('Failed to create capture context');
+
+        await new Promise<void>((resolve) => {
+          let capturedCount = 0;
+          const captureStart = Date.now();
+          const captureLoop = setInterval(() => {
+            const elapsed = Date.now() - captureStart;
+            const expectedFrame = Math.floor((elapsed / 1000) * settings.exportFps);
+
+            if (expectedFrame <= capturedCount && rawFrames.length > 0) return;
+            capturedCount = expectedFrame;
+
+            if (abortRef.current || elapsed >= stopDurationMs) {
+              clearInterval(captureLoop);
+              resolve();
+              return;
+            }
+
+            try {
+              capCtx.drawImage(canvas, cropX, cropY, cropWidth, cropHeight, 0, 0, settings.exportWidth, settings.exportHeight);
+              rawFrames.push(capCtx.getImageData(0, 0, settings.exportWidth, settings.exportHeight));
+            } catch (e) {
+              console.warn('Raw frame capture error:', e);
+            }
+
+            setExportProgress((elapsed / stopDurationMs) * 0.3);
+          }, Math.max(1, frameIntervalMs / 2));
+        });
+
+        if (abortRef.current || rawFrames.length === 0) return;
+
+        // Phase 2: Apply dithering/palette/pixelation to each frame at full resolution (offline, no time pressure)
+        const ppProcessCanvas = document.createElement('canvas');
+        ppProcessCanvas.width = settings.exportWidth;
+        ppProcessCanvas.height = settings.exportHeight;
+        const ppProcessCtx = ppProcessCanvas.getContext('2d', { willReadFrequently: true });
+
+        if (!ppProcessCtx) throw new Error('Failed to create processing context');
+
+        for (let i = 0; i < rawFrames.length; i++) {
+          if (abortRef.current) break;
+          setExportProgress(0.3 + (i / rawFrames.length) * 0.3);
+
+          // Apply dithering/palette effects directly at full resolution
+          if (settings.ditheringEnabled || settings.paletteType !== 'full') {
+            const imageData = rawFrames[i];
+            const palette = palettes[settings.paletteType].colors;
+
+            if (settings.ditheringEnabled) {
+              if (settings.ditheringType === 'bayer') {
+                applyBayerDithering(imageData.data, settings.exportWidth, settings.exportHeight, palette, settings.ditheringIntensity, settings.ditheringResolution);
+              } else {
+                applyFloydSteinbergDithering(imageData.data, settings.exportWidth, settings.exportHeight, palette, settings.ditheringIntensity, settings.ditheringResolution);
+              }
+            } else {
+              reduceColorsTopalette(imageData.data, palette);
+            }
+
+            rawFrames[i] = imageData;
+          }
+
+          // Apply pixelation if enabled
+          if (settings.pixelationEnabled && settings.pixelSize > 1) {
+            ppProcessCtx.putImageData(rawFrames[i], 0, 0);
+            applyPixelation(ppProcessCtx, ppProcessCanvas, settings.pixelSize);
+            rawFrames[i] = ppProcessCtx.getImageData(0, 0, settings.exportWidth, settings.exportHeight);
+          }
+
+          // Yield to UI thread periodically
+          if (i % 5 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
+        }
+
+        if (abortRef.current) return;
+
+        // Phase 3: Play back processed frames and record with MediaRecorder
+        const ppCompositeCanvas = document.createElement('canvas');
+        ppCompositeCanvas.width = settings.exportWidth;
+        ppCompositeCanvas.height = settings.exportHeight;
+        const ppCompCtx = ppCompositeCanvas.getContext('2d');
+        if (!ppCompCtx) throw new Error('Failed to create composite context');
+
+        // Draw first frame immediately
+        if (rawFrames.length > 0) {
+          ppCompCtx.putImageData(rawFrames[0], 0, 0);
+        }
+
+        const ppRecordingStream = ppCompositeCanvas.captureStream(settings.exportFps);
+
+        // Select MIME type and codec
+        let ppMimeType: string;
+        let ppVideoBitsPerSecond: number;
+
+        if (settings.exportFormat === 'mp4') {
+          const mp4Types = [
+            'video/mp4;codecs=avc1',
+            'video/mp4;codecs=avc1.42E01E',
+            'video/mp4;codecs=h264',
+            'video/mp4',
+          ];
+          ppMimeType = mp4Types.find(type => MediaRecorder.isTypeSupported(type)) || 'video/webm';
+          ppVideoBitsPerSecond = calculateBitrate(settings.exportWidth, settings.exportHeight, settings.exportQuality, settings.exportFps);
+        } else {
+          const webmTypes = [
+            'video/webm;codecs=vp9',
+            'video/webm;codecs=vp9,opus',
+            'video/webm;codecs=vp8',
+            'video/webm',
+          ];
+          ppMimeType = webmTypes.find(type => MediaRecorder.isTypeSupported(type)) || 'video/webm';
+          ppVideoBitsPerSecond = calculateBitrate(settings.exportWidth, settings.exportHeight, settings.exportQuality, settings.exportFps);
+        }
+
+        const ppMediaRecorder = new MediaRecorder(ppRecordingStream, {
+          mimeType: ppMimeType,
+          videoBitsPerSecond: ppVideoBitsPerSecond,
+        });
+
+        const ppChunks: Blob[] = [];
+        ppMediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) ppChunks.push(e.data);
+        };
+
+        ppMediaRecorder.start(100);
+
+        // Play back pre-processed frames at correct FPS
+        let playbackIndex = 1; // Frame 0 already drawn
+        await new Promise<void>((resolve) => {
+          const playbackLoop = setInterval(() => {
+            if (playbackIndex >= rawFrames.length || abortRef.current) {
+              clearInterval(playbackLoop);
+              // Small delay to ensure last frame is captured by MediaRecorder
+              setTimeout(() => ppMediaRecorder.stop(), 100);
+              return;
+            }
+            ppCompCtx.putImageData(rawFrames[playbackIndex], 0, 0);
+            setExportProgress(0.6 + (playbackIndex / rawFrames.length) * 0.4);
+            playbackIndex++;
+          }, frameIntervalMs);
+
+          ppMediaRecorder.onstop = () => {
+            if (!abortRef.current && ppChunks.length > 0) {
+              const blob = new Blob(ppChunks, { type: ppMimeType });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              const formatExt = settings.exportFormat === 'mp4' ? 'mp4' : 'webm';
+              a.download = `loopforge-${settings.animationType}-${Date.now()}.${formatExt}`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+            }
+            resolve();
+          };
+        });
 
         return;
       }

@@ -1,4 +1,4 @@
-import { useRef, forwardRef, useImperativeHandle, useEffect, useCallback, useState } from 'react';
+import { useRef, forwardRef, useImperativeHandle, useEffect, useCallback, useState, useMemo, memo } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, Environment } from '@react-three/drei';
 import * as THREE from 'three';
@@ -10,12 +10,14 @@ import { palettes } from '../utils/palettes';
 import { applyPixelation } from '../utils/pixelation';
 
 interface SceneLightsProps {
-  settings: AnimationSettings;
+  shapeColor: string;
+  shapeColor2: string;
 }
 
-function SceneLights({ settings }: SceneLightsProps) {
-  const color1 = new THREE.Color(settings.shapeColor);
-  const color2 = new THREE.Color(settings.shapeColor2);
+// Memoize SceneLights to avoid recreating Three.Color objects every frame
+const SceneLights = memo(function SceneLights({ shapeColor, shapeColor2 }: SceneLightsProps) {
+  const color1 = useMemo(() => new THREE.Color(shapeColor), [shapeColor]);
+  const color2 = useMemo(() => new THREE.Color(shapeColor2), [shapeColor2]);
 
   return (
     <>
@@ -26,75 +28,86 @@ function SceneLights({ settings }: SceneLightsProps) {
       <directionalLight position={[5, 5, 5]} intensity={0.5} />
     </>
   );
-}
+});
 
-function BackgroundPlane({ settings }: { settings: AnimationSettings }) {
+function BackgroundPlane({ backgroundColor }: { backgroundColor: string }) {
   const { scene } = useThree();
+  const bgColor = useMemo(() => new THREE.Color(backgroundColor), [backgroundColor]);
 
   useEffect(() => {
-    if (settings.backgroundGradient) {
-      scene.background = new THREE.Color(settings.backgroundColor);
-    } else {
-      scene.background = new THREE.Color(settings.backgroundColor);
-    }
-  }, [settings.backgroundColor, settings.backgroundGradient, scene]);
+    scene.background = bgColor;
+  }, [scene, bgColor]);
 
   return null;
 }
 
 interface CameraControllerProps {
-  settings: AnimationSettings;
+  cameraPreset: string;
+  cameraDistance: number;
+  cameraAutoRotate: boolean;
+  cameraAutoRotateSpeed: number;
+  loopDuration: number;
 }
 
-function CameraController({ settings }: CameraControllerProps) {
+function CameraController({ 
+  cameraPreset, 
+  cameraDistance, 
+  cameraAutoRotate, 
+  cameraAutoRotateSpeed,
+  loopDuration,
+}: CameraControllerProps) {
   const { camera } = useThree();
+  const prevPresetRef = useRef<string>(cameraPreset);
+  const prevDistanceRef = useRef<number>(cameraDistance);
 
+  // Only update camera position when preset or distance actually changes
   useEffect(() => {
-    if (settings.cameraPreset !== 'custom') {
-      // Set camera position based on preset
-      switch (settings.cameraPreset) {
-        case 'front':
-          camera.position.set(0, 0, settings.cameraDistance);
-          camera.lookAt(0, 0, 0);
-          break;
-        case 'top':
-          camera.position.set(0, settings.cameraDistance, 0);
-          camera.lookAt(0, 0, 0);
-          break;
-        case 'side':
-          camera.position.set(settings.cameraDistance, 0, 0);
-          camera.lookAt(0, 0, 0);
-          break;
-        case 'isometric':
-          camera.position.set(settings.cameraDistance, settings.cameraDistance, settings.cameraDistance);
-          camera.lookAt(0, 0, 0);
-          break;
-      }
-    } else {
-      // For custom mode, just set the distance if not auto-rotating
-      if (!settings.cameraAutoRotate) {
-        camera.position.setLength(settings.cameraDistance);
+    if (cameraPreset !== prevPresetRef.current || cameraDistance !== prevDistanceRef.current) {
+      prevPresetRef.current = cameraPreset;
+      prevDistanceRef.current = cameraDistance;
+
+      if (cameraPreset !== 'custom') {
+        switch (cameraPreset) {
+          case 'front':
+            camera.position.set(0, 0, cameraDistance);
+            camera.lookAt(0, 0, 0);
+            break;
+          case 'top':
+            camera.position.set(0, cameraDistance, 0);
+            camera.lookAt(0, 0, 0);
+            break;
+          case 'side':
+            camera.position.set(cameraDistance, 0, 0);
+            camera.lookAt(0, 0, 0);
+            break;
+          case 'isometric':
+            camera.position.set(cameraDistance, cameraDistance, cameraDistance);
+            camera.lookAt(0, 0, 0);
+            break;
+        }
+      } else if (!cameraAutoRotate) {
+        camera.position.setLength(cameraDistance);
       }
     }
-  }, [settings.cameraPreset, settings.cameraDistance, camera]);
+  }, [cameraPreset, cameraDistance, cameraAutoRotate, camera]);
 
+  // Use faster math for auto-rotation
   useFrame(({ clock }) => {
-    if (settings.cameraAutoRotate) {
-      const t = clock.getElapsedTime();
-      let loopT = (t % settings.loopDuration) / settings.loopDuration;
+    if (cameraAutoRotate) {
+      const elapsed = clock.getElapsedTime();
+      const loopT = (elapsed % loopDuration) / loopDuration;
+      const angle = loopT * Math.PI * 2 * cameraAutoRotateSpeed * 0.5;
       
-      // Ensure loopT stays in [0, 1) to prevent floating point precision issues
-      if (loopT >= 0.9999999) {
-        loopT = 0;
-      } else if (loopT < 0) {
-        loopT = 0;
+      // Direct position update is faster than setLength + rotation
+      const nextX = Math.cos(angle) * cameraDistance;
+      const nextZ = Math.sin(angle) * cameraDistance;
+      
+      // Only update if position actually changed significantly
+      if (Math.abs(camera.position.x - nextX) > 0.001 || Math.abs(camera.position.z - nextZ) > 0.001) {
+        camera.position.x = nextX;
+        camera.position.z = nextZ;
+        camera.lookAt(0, 0, 0);
       }
-      
-      // Apply camera rotation speed as a multiplier
-      const angle = loopT * Math.PI * 2 * settings.cameraAutoRotateSpeed * 0.5;
-      camera.position.x = Math.cos(angle) * settings.cameraDistance;
-      camera.position.z = Math.sin(angle) * settings.cameraDistance;
-      camera.lookAt(0, 0, 0);
     }
   });
 
@@ -111,17 +124,38 @@ interface SceneProps {
 }
 
 /**
- * Retro Effects Component — applies dithering, palette reduction, and pixelation.
- * Works on top of or instead of the 3D scene depending on settings.
+ * Retro Effects Component (Optimized)
+ * applies dithering, palette reduction, and pixelation with reduced re-renders
  */
-function RetroEffects({ glCanvas, settings }: { glCanvas: HTMLCanvasElement | null; settings: AnimationSettings }) {
+const RetroEffects = memo(function RetroEffects({ 
+  glCanvas, 
+  ditheringEnabled,
+  pixelationEnabled,
+  ditheringType,
+  ditheringIntensity,
+  ditheringResolution,
+  paletteType,
+  pixelSize,
+}: { 
+  glCanvas: HTMLCanvasElement | null; 
+  ditheringEnabled: boolean;
+  pixelationEnabled: boolean;
+  ditheringType: string;
+  ditheringIntensity: number;
+  ditheringResolution: number;
+  paletteType: string;
+  pixelSize: number;
+}) {
   const retroCanvasRef = useRef<HTMLCanvasElement>(null);
   const tempCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number>(0);
 
+  // Memoize palette to avoid lookups every frame
+  const palette = useMemo(() => palettes[paletteType as keyof typeof palettes]?.colors || [], [paletteType]);
+
   const render = useCallback(() => {
     if (!glCanvas || !retroCanvasRef.current) return;
-    if (!settings.ditheringEnabled && !settings.pixelationEnabled) return;
+    if (!ditheringEnabled && !pixelationEnabled) return;
 
     const retroCanvas = retroCanvasRef.current;
     const w = glCanvas.width;
@@ -155,16 +189,15 @@ function RetroEffects({ glCanvas, settings }: { glCanvas: HTMLCanvasElement | nu
       retroCtx.drawImage(temp, 0, 0);
 
       // Get image data to apply dithering/palette
-      if (settings.ditheringEnabled || (settings.paletteType !== 'full')) {
+      if (ditheringEnabled || paletteType !== 'full') {
         const imageData = retroCtx.getImageData(0, 0, w, h);
-        const palette = palettes[settings.paletteType].colors;
 
         // Apply dithering or palette reduction
-        if (settings.ditheringEnabled) {
-          if (settings.ditheringType === 'bayer') {
-            applyBayerDithering(imageData.data, w, h, palette, settings.ditheringIntensity, settings.ditheringResolution);
+        if (ditheringEnabled) {
+          if (ditheringType === 'bayer') {
+            applyBayerDithering(imageData.data, w, h, palette, ditheringIntensity, ditheringResolution);
           } else {
-            applyFloydSteinbergDithering(imageData.data, w, h, palette, settings.ditheringIntensity, settings.ditheringResolution);
+            applyFloydSteinbergDithering(imageData.data, w, h, palette, ditheringIntensity, ditheringResolution);
           }
         } else {
           // Just reduce colors without dithering
@@ -176,26 +209,26 @@ function RetroEffects({ glCanvas, settings }: { glCanvas: HTMLCanvasElement | nu
       }
 
       // Apply pixelation on top
-      if (settings.pixelationEnabled && settings.pixelSize > 1) {
-        applyPixelation(retroCtx, retroCanvas, settings.pixelSize);
+      if (pixelationEnabled && pixelSize > 1) {
+        applyPixelation(retroCtx, retroCanvas, pixelSize);
       }
     } catch (_) {
       // silently fail if canvas not ready
     }
 
     rafRef.current = requestAnimationFrame(render);
-  }, [glCanvas, settings]);
+  }, [glCanvas, ditheringEnabled, pixelationEnabled, ditheringType, ditheringIntensity, ditheringResolution, paletteType, pixelSize, palette]);
 
   useEffect(() => {
-    if (!settings.ditheringEnabled && !settings.pixelationEnabled) {
+    if (!ditheringEnabled && !pixelationEnabled) {
       cancelAnimationFrame(rafRef.current);
       return;
     }
     rafRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [settings.ditheringEnabled, settings.pixelationEnabled, render]);
+  }, [ditheringEnabled, pixelationEnabled, render]);
 
-  if (!settings.ditheringEnabled && !settings.pixelationEnabled) return null;
+  if (!ditheringEnabled && !pixelationEnabled) return null;
 
   return (
     <canvas
@@ -204,20 +237,52 @@ function RetroEffects({ glCanvas, settings }: { glCanvas: HTMLCanvasElement | nu
       style={{ zIndex: 10 }}
     />
   );
-}
+});
 
 /**
- * ASCII Effect Component — completely replaces the 3D canvas with ASCII art.
- * Reads pixels from the WebGL canvas each frame and renders colored ASCII
- * characters on a separate 2D canvas that covers the whole viewport.
+ * ASCII Effect Component (Optimized)
+ * completely replaces the 3D canvas with ASCII art.
+ * Optimized with reduced re-renders via memo
  */
-function ASCIIEffect({ glCanvas, settings }: { glCanvas: HTMLCanvasElement | null; settings: AnimationSettings }) {
+const ASCIIEffect = memo(function ASCIIEffect({ 
+  glCanvas, 
+  asciiEnabled,
+  asciiCharset,
+  asciiResolution,
+  asciiInvert,
+  asciiContrast,
+  asciiGamma,
+  asciiColorMode,
+  asciiTextColor,
+  backgroundColor,
+  asciiFontSize,
+  asciiFontWeight,
+  asciiOpacity,
+  asciiBackgroundOpacity,
+  asciiBrightnessBoost,
+}: { 
+  glCanvas: HTMLCanvasElement | null; 
+  asciiEnabled: boolean;
+  asciiCharset: string;
+  asciiResolution: number;
+  asciiInvert: boolean;
+  asciiContrast: number;
+  asciiGamma: number;
+  asciiColorMode: boolean;
+  asciiTextColor: string;
+  backgroundColor: string;
+  asciiFontSize: number;
+  asciiFontWeight: 'bold' | 'normal';
+  asciiOpacity: number;
+  asciiBackgroundOpacity: number;
+  asciiBrightnessBoost: number;
+}) {
   const asciiCanvasRef = useRef<HTMLCanvasElement>(null);
   const tempCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number>(0);
 
   const render = useCallback(() => {
-    if (!glCanvas || !asciiCanvasRef.current || !settings.asciiEnabled) return;
+    if (!glCanvas || !asciiCanvasRef.current || !asciiEnabled) return;
 
     const asciiCanvas = asciiCanvasRef.current;
     const w = glCanvas.width;
@@ -250,46 +315,62 @@ function ASCIIEffect({ glCanvas, settings }: { glCanvas: HTMLCanvasElement | nul
 
       // Convert to ASCII cell grid
       const frame = imageDataToASCIICells(imageData, w, h, {
-        charset: settings.asciiCharset,
-        resolution: settings.asciiResolution,
-        invert: settings.asciiInvert,
-        contrast: settings.asciiContrast,
-        gamma: settings.asciiGamma,
-        colorMode: settings.asciiColorMode,
-        textColor: settings.asciiTextColor,
-        backgroundColor: settings.backgroundColor,
+        charset: asciiCharset as any,
+        resolution: asciiResolution,
+        invert: asciiInvert,
+        contrast: asciiContrast,
+        gamma: asciiGamma,
+        colorMode: asciiColorMode,
+        textColor: asciiTextColor,
+        backgroundColor: backgroundColor,
       });
 
       // Render ASCII characters to the canvas
       renderASCIIToCanvas(asciiCtx, frame, w, h, {
-        charset: settings.asciiCharset,
-        resolution: settings.asciiResolution,
-        colorMode: settings.asciiColorMode,
-        textColor: settings.asciiTextColor,
-        backgroundColor: settings.backgroundColor,
-        fontSize: settings.asciiFontSize,
-        fontWeight: settings.asciiFontWeight,
-        textOpacity: settings.asciiOpacity,
-        backgroundOpacity: settings.asciiBackgroundOpacity,
-        brightnessBoost: settings.asciiBrightnessBoost,
+        charset: asciiCharset as any,
+        resolution: asciiResolution,
+        colorMode: asciiColorMode,
+        textColor: asciiTextColor,
+        backgroundColor: backgroundColor,
+        fontSize: asciiFontSize,
+        fontWeight: asciiFontWeight,
+        textOpacity: asciiOpacity,
+        backgroundOpacity: asciiBackgroundOpacity,
+        brightnessBoost: asciiBrightnessBoost,
       });
     } catch (_) {
       // silently fail if canvas not ready
     }
 
     rafRef.current = requestAnimationFrame(render);
-  }, [glCanvas, settings]);
+  }, [
+    glCanvas,
+    asciiEnabled,
+    asciiCharset,
+    asciiResolution,
+    asciiInvert,
+    asciiContrast,
+    asciiGamma,
+    asciiColorMode,
+    asciiTextColor,
+    backgroundColor,
+    asciiFontSize,
+    asciiFontWeight,
+    asciiOpacity,
+    asciiBackgroundOpacity,
+    asciiBrightnessBoost,
+  ]);
 
   useEffect(() => {
-    if (!settings.asciiEnabled) {
+    if (!asciiEnabled) {
       cancelAnimationFrame(rafRef.current);
       return;
     }
     rafRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [settings.asciiEnabled, render]);
+  }, [asciiEnabled, render]);
 
-  if (!settings.asciiEnabled) return null;
+  if (!asciiEnabled) return null;
 
   return (
     <canvas
@@ -298,9 +379,17 @@ function ASCIIEffect({ glCanvas, settings }: { glCanvas: HTMLCanvasElement | nul
       style={{ zIndex: 10 }}
     />
   );
-}
+});
 
-function ResolutionBorders({ settings, containerRef }: { settings: AnimationSettings; containerRef: React.RefObject<HTMLDivElement | null> }) {
+const ResolutionBorders = memo(function ResolutionBorders({ 
+  exportWidth, 
+  exportHeight, 
+  containerRef 
+}: { 
+  exportWidth: number;
+  exportHeight: number;
+  containerRef: React.RefObject<HTMLDivElement | null> 
+}) {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
@@ -314,48 +403,54 @@ function ResolutionBorders({ settings, containerRef }: { settings: AnimationSett
     };
 
     updateDimensions();
-    window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
+    
+    const handleResize = () => updateDimensions();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [containerRef]);
 
   if (dimensions.width === 0 || dimensions.height === 0) return null;
 
-  const aspectRatio = settings.exportWidth / settings.exportHeight;
+  const aspectRatio = exportWidth / exportHeight;
   const screenWidth = dimensions.width;
   const screenHeight = dimensions.height;
   const screenAspectRatio = screenWidth / screenHeight;
 
-  let borderWidth, borderHeight, borderLeft, borderTop;
+  const borderStyle = useMemo(() => {
+    let borderWidth, borderHeight, borderLeft, borderTop;
 
-  if (aspectRatio > screenAspectRatio) {
-    // Export is wider than screen, fit width
-    borderWidth = screenWidth;
-    borderHeight = screenWidth / aspectRatio;
-    borderLeft = 0;
-    borderTop = (screenHeight - borderHeight) / 2;
-  } else {
-    // Export is taller than screen, fit height
-    borderHeight = screenHeight;
-    borderWidth = screenHeight * aspectRatio;
-    borderTop = 0;
-    borderLeft = (screenWidth - borderWidth) / 2;
-  }
+    if (aspectRatio > screenAspectRatio) {
+      // Export is wider than screen, fit width
+      borderWidth = screenWidth;
+      borderHeight = screenWidth / aspectRatio;
+      borderLeft = 0;
+      borderTop = (screenHeight - borderHeight) / 2;
+    } else {
+      // Export is taller than screen, fit height
+      borderHeight = screenHeight;
+      borderWidth = screenHeight * aspectRatio;
+      borderTop = 0;
+      borderLeft = (screenWidth - borderWidth) / 2;
+    }
+
+    return {
+      border: '2px solid rgba(255, 255, 255, 0.8)',
+      borderRadius: '4px',
+      boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.5)',
+      left: `${borderLeft}px`,
+      top: `${borderTop}px`,
+      width: `${borderWidth}px`,
+      height: `${borderHeight}px`,
+    };
+  }, [aspectRatio, screenWidth, screenHeight]);
 
   return (
     <div
       className="absolute inset-0 pointer-events-none z-20"
-      style={{
-        border: '2px solid rgba(255, 255, 255, 0.8)',
-        borderRadius: '4px',
-        boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.5)',
-        left: `${borderLeft}px`,
-        top: `${borderTop}px`,
-        width: `${borderWidth}px`,
-        height: `${borderHeight}px`,
-      }}
+      style={borderStyle}
     />
   );
-}
+});
 
 export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene({ settings, showBorders }, ref) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -365,23 +460,41 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene({ settin
     getCanvas: () => canvasRef.current,
   }));
 
+  // Memoize canvas GL options to avoid recreating every render
+  const glConfig = useMemo(() => ({
+    preserveDrawingBuffer: true,
+    antialias: true,
+    alpha: false,
+    powerPreference: 'high-performance' as const,
+  }), []);
+
+  // Memoize camera config
+  const cameraConfig = useMemo(() => ({
+    position: [0, 0, settings.cameraDistance] as [number, number, number],
+    fov: 50,
+  }), [settings.cameraDistance]);
+
   return (
     <div ref={containerRef} className="relative w-full h-full">
       <Canvas
         ref={canvasRef}
-        camera={{ position: [0, 0, settings.cameraDistance], fov: 50 }}
-        gl={{
-          preserveDrawingBuffer: true,
-          antialias: true,
-          alpha: false,
-          powerPreference: 'high-performance',
-        }}
+        camera={cameraConfig}
+        gl={glConfig}
         dpr={[1, 2]}
         style={{ background: settings.backgroundColor }}
       >
-        <BackgroundPlane settings={settings} />
-        <CameraController settings={settings} />
-        <SceneLights settings={settings} />
+        <BackgroundPlane backgroundColor={settings.backgroundColor} />
+        <CameraController 
+          cameraPreset={settings.cameraPreset}
+          cameraDistance={settings.cameraDistance}
+          cameraAutoRotate={settings.cameraAutoRotate}
+          cameraAutoRotateSpeed={settings.cameraAutoRotateSpeed}
+          loopDuration={settings.loopDuration}
+        />
+        <SceneLights 
+          shapeColor={settings.shapeColor}
+          shapeColor2={settings.shapeColor2}
+        />
         <AnimatedShapes settings={settings} />
         <Environment preset="city" environmentIntensity={0.2} />
         {!settings.cameraAutoRotate && (
@@ -393,9 +506,40 @@ export const Scene = forwardRef<SceneHandle, SceneProps>(function Scene({ settin
           />
         )}
       </Canvas>
-      <RetroEffects glCanvas={canvasRef.current} settings={settings} />
-      <ASCIIEffect glCanvas={canvasRef.current} settings={settings} />
-      {showBorders && <ResolutionBorders settings={settings} containerRef={containerRef} />}
+      <RetroEffects 
+        glCanvas={canvasRef.current} 
+        ditheringEnabled={settings.ditheringEnabled}
+        pixelationEnabled={settings.pixelationEnabled}
+        ditheringType={settings.ditheringType}
+        ditheringIntensity={settings.ditheringIntensity}
+        ditheringResolution={settings.ditheringResolution}
+        paletteType={settings.paletteType}
+        pixelSize={settings.pixelSize}
+      />
+      <ASCIIEffect 
+        glCanvas={canvasRef.current}
+        asciiEnabled={settings.asciiEnabled}
+        asciiCharset={settings.asciiCharset}
+        asciiResolution={settings.asciiResolution}
+        asciiInvert={settings.asciiInvert}
+        asciiContrast={settings.asciiContrast}
+        asciiGamma={settings.asciiGamma}
+        asciiColorMode={settings.asciiColorMode}
+        asciiTextColor={settings.asciiTextColor}
+        backgroundColor={settings.backgroundColor}
+        asciiFontSize={settings.asciiFontSize}
+        asciiFontWeight={settings.asciiFontWeight}
+        asciiOpacity={settings.asciiOpacity}
+        asciiBackgroundOpacity={settings.asciiBackgroundOpacity}
+        asciiBrightnessBoost={settings.asciiBrightnessBoost}
+      />
+      {showBorders && (
+        <ResolutionBorders 
+          exportWidth={settings.exportWidth}
+          exportHeight={settings.exportHeight}
+          containerRef={containerRef} 
+        />
+      )}
     </div>
   );
 });
